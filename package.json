@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "main": "./dist/index.js",
   "devDependencies": {
