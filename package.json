@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.2",
   "name": "tracked-instance",
   "description": "Build large forms and track all changes",
   "type": "module",
@@ -8,7 +8,7 @@
     "test": "vitest run"
   },
   "main": "./dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src"
