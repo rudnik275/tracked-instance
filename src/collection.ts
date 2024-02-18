@@ -26,7 +26,7 @@ export const useCollection = <Item extends Record<string, any>, Meta = Record<st
     items.value.some(({instance, isRemoved, isNew}) => instance.isDirty.value || isNew.value || isRemoved.value)
   )
 
-  const add = (item: Partial<Item>, afterIndex: number = items.value.length) => {
+  const add = (item: Partial<Item>, index: number = items.value.length) => {
     const instance = useTrackedInstance<Item>(item)
     const newItem = {
       isRemoved: ref(false),
@@ -34,7 +34,7 @@ export const useCollection = <Item extends Record<string, any>, Meta = Record<st
       instance,
       meta: createItemMeta(instance)
     } as CollectionItem<Item, Meta>
-    items.value.splice(afterIndex, 0, newItem)
+    items.value.splice(index, 0, newItem)
     triggerRef(items)
     return newItem
   }
