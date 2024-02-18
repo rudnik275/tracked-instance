@@ -1,11 +1,7 @@
 import {get, has, set, unset} from 'lodash-es'
 import {computed, customRef, Ref} from 'vue'
 
-type DeepPartial<T> = T extends object
-  ? {
-    [P in keyof T]?: DeepPartial<T[P]>
-  }
-  : T
+type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T
 
 export interface TrackedInstance<Data extends Record<string, any>> {
   data: Ref<Data>
@@ -214,7 +210,7 @@ const snapshotValueToOriginalData = (
 export const useTrackedInstance = <Data extends Record<string, any>>(
   initialData: Partial<Data>
 ): TrackedInstance<Data> => {
-  type InternalData = {root: Data}
+  type InternalData = { root: Data }
   const _originalData = createNestedRef<DeepPartial<InternalData>>({}, (path) => ({
     deleteProperty(target, property) {
       const result = Reflect.deleteProperty(target, property)
