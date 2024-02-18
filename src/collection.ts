@@ -13,7 +13,6 @@ export interface Collection<Item extends Record<string, any>, Meta = Record<stri
   isDirty: ComputedRef<boolean>
   add: (item: Partial<Item>, afterIndex?: number) => CollectionItem<Item, Meta>
   remove: (index: number, isHardRemove?: boolean) => void
-  cleanRemoved: () => void
   loadData: (items: Item[]) => void
   reset: () => void
 }
@@ -50,11 +49,6 @@ export const useCollection = <Item extends Record<string, any>, Meta = Record<st
     }
   }
 
-  const cleanRemoved = () => {
-    items.value = items.value.filter((item) => !item.isRemoved.value)
-    triggerRef(items)
-  }
-
   const loadData = (loadedItems: Item[]) => {
     items.value = loadedItems.map((item) => {
       const instance = useTrackedInstance<Item>(item)
@@ -82,7 +76,6 @@ export const useCollection = <Item extends Record<string, any>, Meta = Record<st
     isDirty,
     add,
     remove,
-    cleanRemoved,
     loadData,
     reset
   }

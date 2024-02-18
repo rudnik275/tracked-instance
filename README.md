@@ -1,3 +1,17 @@
+# 🚀 Features
+- 🕶 Track what changed in your form
+- 🌎 Send on backend only fields which changed
+- 📦 Build multiple requests for lists only for items which was changed/removed/added
+- 🦾 Type Strong: Written in TypeScript
+
+#  Install
+> npm i tracked-instance
+
+# Support
+Supports Vue 3.x only
+
+# Usage
+
 # TrackedInstance
 
 **TrackedInstance** - part of form manager which accepts object and tracks changes.
@@ -27,14 +41,6 @@ it is necessary to send request to update form.
 TrackedInstance has boolean field `isNew` it is necessary to understand whether it is a new form or not.
 User may need to save this form even if `isDirty === false`
 
-## Fields and methods:
-
-- **data** - our form data
-- **originalData** - object which collects values of data before do some change in each field
-- **changeData** - data filtered by fields which includes in originalData. Used for partial update request
-- **isDirty** - weather form is dirty
-- **loadData** - loads default values () в instance. After this action `isDirty === false`
-- **reset** - rollback changes on **initial state** or state which was set by loadData
 
 ## Example:
 
@@ -86,7 +92,7 @@ And we want to create UI form which will process entities updates.
 - if we open form of an existing user, but didn't change anything for master record of user, but added role to him, in
   this case you don't need to do `PATCH:/user`, but only `POST` for those roles that we added to him, while those roles
   which have **already been** and **have not changed** shouldn't send any requests
- 
+
 - `if (isNew)` - send `POST` request
 - `else if (isDirty)` send `PATCH` request
 - `else` - do nothing
@@ -185,4 +191,29 @@ Both of these tools (TrackedInstance, Collection) allow you to determine which r
 And send not everything, but only what was changed, added or removed.
 With those tools we can do any actions in form and his child entities without send any request,
 instead of case when we can't do anything with child entities before don't save master record,
-because we can't build correct request for child entities without master record ID  
+because we can't build correct request for child entities without master record ID
+
+# Documentation
+## TrackedInstance
+- **data** - tracked data
+- **changeData** - includes only modified fields from data, considers nested objects and arrays
+- **isDirty** - weather instance has some changes
+- **loadData** - rewrite data and clear dirty state
+- **reset** - rollback changes at the last point when the instance was not isDirty
+
+## Collection
+- **items** - array of `CollectionItem`
+- **isDirty** - weather collection includes some changes (add/remove/change)
+- **add** - add new item
+- **remove** - soft remove item by index. Soft removed items should be deleted permanently after load data. Can be reverted by reset. If passed second param isHardRemove can be deleted permanently.
+- **loadData** - accepts array of data for each item. Rewrite each instance data and clear dirty state
+- **reset** - rollback changes at the last point when the instance was not isDirty
+
+```typescript
+interface CollectionItem {
+  instance: TrackedInstance
+  isRemoved: Ref<boolean>
+  isNew: Ref<boolean> //weather is new instance. Field can be changed manually or changed in loadData in second argument
+  meta: Record<string, any>
+}
+```
