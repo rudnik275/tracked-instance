@@ -7,10 +7,9 @@
     "test": "vitest run"
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "devDependencies": {
     "@types/lodash-es": "^4.17.12",
