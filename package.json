@@ -1,5 +1,6 @@
 {
   "name": "tracked-instance",
+  "version": "1.0.5",
   "description": "Build large forms and track all changes",
   "type": "module",
   "scripts": {
@@ -39,6 +40,5 @@
     "collection",
     "useTrackedInstance",
     "useCollection"
-  ],
-  "version": "0.0.2"
+  ]
 }
