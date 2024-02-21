@@ -1,4 +1,4 @@
-
+<a href="https://www.npmjs.com/package/tracked-instance"><img src="https://img.shields.io/npm/v/tracked-instance.svg?sanitize=true" alt="Version"></a>
 
 # 🚀 Features
 - 🕶 Track what changed in your form
