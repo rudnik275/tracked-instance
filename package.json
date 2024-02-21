@@ -4,7 +4,7 @@
   "description": "Build large forms and track all changes",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && esbuild ./dist/build/index.js --bundle --minify --outfile=./dist/index.js && rm -rf ./dist/build",
     "test": "vitest run"
   },
   "main": "./dist/index.js",
