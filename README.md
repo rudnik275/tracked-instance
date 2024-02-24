@@ -1,3 +1,4 @@
+# Tracked instance
 <a href="https://www.npmjs.com/package/tracked-instance"><img src="https://img.shields.io/npm/v/tracked-instance.svg?sanitize=true" alt="Version"></a>
 
 # 🚀 Features
@@ -10,6 +11,7 @@
 Build large forms and send all requests in one take.
 Combination of useTrackedInstance and useCollection can manage very large form with entities which deeply related each other.
 You can control what data should be sent to the server so that only what has changed is sent.
+Tracked instance is not so much about managing forms, but about building and optimizing queries.
 
 #  Install
 > npm i tracked-instance
