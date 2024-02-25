@@ -4,7 +4,7 @@
   "description": "Build large forms and track all changes",
   "type": "module",
   "scripts": {
-    "build": "esbuild ./src/index.ts --bundle --external:vue --outfile=./dist/index.mjs --format=esm",
+    "build": "tsc && esbuild ./src/index.ts --bundle --external:vue --outfile=./dist/index.mjs --format=esm",
     "test": "vitest run"
   },
   "main": "./dist/index.mjs",
