@@ -187,7 +187,7 @@ console.log(items.value[0].meta.isValidName.value) // false
 ```
 
 ### Real-world example
-[Try on playground](https://play.vuejs.org/#eNp9VcFu1DAQ/ZUhl81K2+QAp9W2orQ90ENBLZwIBzfx7rrrOJHtbLda5RsQSAhxob+BhMTH8AP0ExjbSdZJu+xlbc945s2b58k2OC7LaF3RYBrMVCpZqUFRXZVHiWB5WUgNW0nnNcxlkcMIHUc7Q6XoScE5TTUrROuiJUlXNDtgQmkiUuOfiLTAHWyZOmVS302AZNkEmKa5moCkebGm5h8TT4AXJDslmtRwCL0E4dhEas3hh60gOZ3C6BzzjeoJdPtiKfp7Oqo/2ssOhqC37xWVF2jGHFhdOBp5ZkXW9GRJxIIqNIdjODyCbSKgQxZa4NGa8IpGOSlDe2D9zCJqK48ydHZuY4xfJ2IWO4qRXNygb8mJprgDmF1XWhd4DPibZkyRa06zwyR41pCWBM72MuUsXaHBw+lsNg7Aw/2X33CFRkgbqwkfu/h+rl0oS30SHP35/uvvz09wabb9G0sJsUWN64ytjxpQU9huoVlDXc9iY/PcHKLjLDOkm3bKqTuaMVFW2q0B1gd5kVGOSLzetAUD6LuSok3TDYJ0hwaMjTMsBZUVNp33YtVjU92PrxaKgdGvzodd8TZ02x+ENy8kxrZ9Rt2KjG7G+OcUjJFboDPO0JnNbdusFNSlVXfmZOC5Dino07BPR5GpbEfMHnJ8gp4kyT250BWCoB7uv33GrpvDHjG9632kvSIv6G1boO/V5euXY9WGr9nz9bIB+Cr0UDwGZhM7CQ5woBa7nsSctR2N+08utr02y6ZLrqFWop4ObFOdAoy9a3w0Z1xTic/fvf1htw2zLYoO456e+oCH3XpKSTiZ5oQro6iWLhyU1zgKBzx15TfV9jgIJoGb5Qc4xqIbVQj8DNhZh1mtAdWNBLtQKLLBbDfGJFhqXappHFeiXC2itMjjx34mAlZYY0atcM7O2WKQD++VjFP5pjTDvp+XcF7cntszLSs6ac/TJU1XT5zfqI2D9tZoTa4RQGfTRC7MsDPms6sL+2w6I76/ijdl7TGiLAteGYzO7VUlMoTt+Vm0ry19TCzeqbONpkK1RRmglg3rnwT4ST35T+k7uM+jFx2L9T/LBo48)
+[Try on playground](https://play.vuejs.org/#eNp9VcFy0zAQ/ZWtL3ZnUvsAp5BmKG0P9FCYFk6Yg2sriRpZ9khymk7G38DADMNwob/BDDN8DD9AP4GVZDuym3BJLO1q973dp9XGOynLcFURb+xNZCpoqUASVZXTmNO8LISCjSCzGmaiyMFHR39rqCQ5LRgjqaIFb12USNIlyY4olyrhqfaPeVrgCjZUnlGh7keQZNkIqCK5HIEgebEi+h8Tj4AVSXaWqKSGY+glCA51pNYcfNjwJCdj8C8wn1+PoFsXC95fE7/+aA5bGJzcvZdEXKIZcyC7wPcds0xW5HSR8DmRaA4O4XgKm5hDhyzQC7Dww1XCKmI3AMIZZYqIQJv0sQP9EVJ5ZShm1hlTNd55UgbG1+Swvk3VwgwTOf74U8d8EtkWYXNwgf4lSxTBFcDkplKqwG0deZxRmdwwkh3H3kFT9Niztpcpo+kSDQ5PazNxAB4fvvyGazRC2lh1+MjGd3NtQ5nWxd70z/dff39+giu97J9YCIgMavzO6GragBrDZgPNN9T1JNI2x80iOsky3TQtBzG2WxPKy0q1lVwd5UVGGCJxetsSBlD3JUGbImsEaTc1GBNnSAWVGTTKcWLVhy8GsvF9zffHVwNOA+vzdYlUrE3WdgwBzwqB2Uz38SbwjKwP8c+KCiO30CeMojOdmUbuEJPjOixKvzD71BVqrttS7SmXW7KdZbOXOLBEENTjw7fPqAO92StM73gfaY/kJblrCbpeXb4+HaM/nA+Or5MNwNWlg+IpMJPYinKAA9XZ9SRitO1o1L+Ekem1/my6ZBtqROvowDTVKsCMirbx7fwIqJ0IT0fHtt0dxj09dQEPu7VLSajpWcKkVlRbLhy9NzhcB3Xq6DdsezXwRp59HY5wuIW3suD4sJjpiVmNAdWNBbahUGSD10IbY2+hVCnHUVTxcjkP0yKPnvrpCMiwxoxK4uSe0fkgH54rKSPiTamfj37ehLHi7sLsKVGRUbufLki63LF/K9cW2lutNbFCAJ1NJWKux582n19fmmvTGfH+VayhtceIsixYpTFat1cVzxC242fQvjblo3z+Tp6vFeGyJaWBmmoY/9jDR/r0P9S3cJ+Fz7sq1v8AiAKmmg==)
 ```vue
 <script setup>
   import {ref} from 'vue'
@@ -200,7 +200,11 @@ console.log(items.value[0].meta.isValidName.value) // false
   const newUserName = ref('')
 
   const saveChanges = () => {
-    loadData(items.value.map((item) => item.instance.data.value))
+    loadData(
+      items.value
+        .filter(item => !item.isRemoved.value)
+        .map((item) => item.instance.data.value)
+    )
   }
 </script>
 
@@ -222,7 +226,7 @@ console.log(items.value[0].meta.isValidName.value) // false
       v-model="newUserName"
       type="text"
     />
-    <button @click="add({name: newUserName})">➕ Add user</button>
+    <button @click="add({name: newUserName}); newUserName = ''">➕ Add user</button>
   </div>
 
   <ul>
