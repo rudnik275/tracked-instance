@@ -1,114 +1,14 @@
 import {get, has, set, unset} from 'lodash-es'
-import {computed, customRef, Ref} from 'vue'
+import {computed, Ref} from 'vue'
+import {createNestedRef, DeepPartial, isEmpty, isObject, iterateObject, NestedProxyPathItem} from './utils'
 
-type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T
-
-export interface TrackedInstance<Data extends Record<string, any>> {
+export interface TrackedInstance<Data> {
   data: Ref<Data>
   isDirty: Ref<boolean>
   changedData: Ref<DeepPartial<Data>>
-  loadData: (newData: DeepPartial<Data>) => void
+  loadData: (newData: Data) => void
   reset: () => void
 }
-
-interface NestedProxyPathItem {
-  target: Record<string, any>
-  property: string
-  receiver?: Record<string, any>
-}
-
-const isObject = (value: unknown) =>
-  typeof value === 'object' &&
-  value !== null &&
-  !Array.isArray(value) &&
-  !(value instanceof Date) &&
-  !(value instanceof File) &&
-  !(value instanceof Map) &&
-  !(value instanceof Set)
-
-const isEmpty = (value: object) => Object.keys(value).length === 0
-
-const iterateObject = function* (
-  source: Record<string, any>,
-  params: {
-    // define condition when need to go deep
-    goDeepCondition?: (path: string[], value: any) => boolean
-    // include parent into separate step when we go deep
-    includeParent?: boolean
-  } = {}
-) {
-  const {goDeepCondition = (_, value) => isObject(value), includeParent = false} = params
-  const iterateObjectDeep = function* (path: string[], obj: Record<string, any>): Generator<[string[], any]> {
-    for (const [key, value] of Object.entries(obj)) {
-      const currentPath = path.concat(key)
-      if (goDeepCondition(currentPath, value)) {
-        if (includeParent) {
-          yield [currentPath, value]
-        }
-        yield* iterateObjectDeep(currentPath, value)
-      } else {
-        yield [currentPath, value]
-      }
-    }
-  }
-
-  yield* iterateObjectDeep([], source)
-}
-
-const createNestedRef = <Source extends Record<string, any>>(
-  source: Source,
-  handler: (path: NestedProxyPathItem[]) => ProxyHandler<Source>
-) =>
-  customRef<Source>((track, trigger) => {
-    // make nested objects and arrays is reactive
-    const createProxy = <InnerSource extends Record<string, any>>(
-      source: InnerSource,
-      path: NestedProxyPathItem[] = []
-    ): InnerSource => {
-      const currentProxyHandler = handler(path) as unknown as ProxyHandler<InnerSource>
-      return new Proxy(source, {
-        ...currentProxyHandler,
-        get(target, property: string, receiver) {
-          track()
-          const result = currentProxyHandler.get
-            ? currentProxyHandler.get(target, property, receiver)
-            : Reflect.get(target, property, receiver)
-
-          if (isObject(result) || Array.isArray(result)) {
-            return createProxy(result, path.concat({target, property, receiver}))
-          }
-          return result
-        },
-        set(target, property, value, receiver) {
-          const result = currentProxyHandler.set
-            ? currentProxyHandler.set(target, property, value, receiver)
-            : Reflect.set(target, property, value, receiver)
-          trigger()
-          return result
-        },
-        deleteProperty(target, property) {
-          const result = currentProxyHandler.deleteProperty
-            ? currentProxyHandler.deleteProperty(target, property)
-            : Reflect.deleteProperty(target, property)
-          trigger()
-          return result
-        }
-      } as ProxyHandler<InnerSource>)
-    }
-
-    let value = createProxy(source)
-
-    return {
-      get() {
-        track()
-        return value
-      },
-      set(newValue: Source) {
-        value = createProxy(newValue)
-        trigger()
-      }
-    }
-  })
 
 // array values in originalData should store in default object to avoid removing items on change length
 class ArrayInOriginalData {
@@ -207,9 +107,12 @@ const snapshotValueToOriginalData = (
   }
 }
 
-export const useTrackedInstance = <Data extends Record<string, any>>(
-  initialData: Partial<Data>
-): TrackedInstance<Data> => {
+export function useTrackedInstance<Data = any>(): TrackedInstance<Data | undefined>
+export function useTrackedInstance<Data>(value: Data): TrackedInstance<Data>
+
+export function useTrackedInstance<Data>(
+  initialData?: Data
+): TrackedInstance<Data> {
   type InternalData = { root: Data }
   const _originalData = createNestedRef<DeepPartial<InternalData>>({}, (path) => ({
     deleteProperty(target, property) {
@@ -236,7 +139,7 @@ export const useTrackedInstance = <Data extends Record<string, any>>(
           path.map((i) => i.property)
         ) as ArrayInOriginalData | undefined
 
-        const {length: originalDataLength} = originalDataValue || oldValue
+        const {length: originalDataLength} = originalDataValue || oldValue as any[]
 
         if (value < originalDataLength) {
           // when removed new value
@@ -261,7 +164,7 @@ export const useTrackedInstance = <Data extends Record<string, any>>(
 
       return Reflect.set(target, property, value, receiver)
     },
-    deleteProperty(target, property: keyof typeof target) {
+    deleteProperty(target, property) {
       setOriginalDataValue(_originalData.value, parentThree.concat({target, property} as NestedProxyPathItem))
       return Reflect.deleteProperty(target, property)
     }
@@ -299,7 +202,7 @@ export const useTrackedInstance = <Data extends Record<string, any>>(
 
   const changedData = computed(() => _changedData.value.root as DeepPartial<Data>)
 
-  const loadData = (newData: DeepPartial<Data>) => {
+  const loadData = (newData: Data) => {
     _data.value = {root: newData} as InternalData
     _originalData.value = {}
   }

@@ -1,24 +1,24 @@
-import {computed, shallowRef, triggerRef, ShallowRef, ComputedRef, ref, Ref} from 'vue'
+import {computed, ComputedRef, ref, Ref, ShallowRef, shallowRef, triggerRef} from 'vue'
 import {TrackedInstance, useTrackedInstance} from './tracked-instance'
 
-export interface CollectionItem<Item extends Record<string, any>, Meta = Record<string, any>> {
+export interface CollectionItem<Item, Meta> {
   instance: TrackedInstance<Item>
   meta: Meta
   isRemoved: Ref<boolean>
   isNew: Ref<boolean>
 }
 
-export interface Collection<Item extends Record<string, any>, Meta = Record<string, any>> {
+export interface Collection<Item, Meta> {
   items: ShallowRef<CollectionItem<Item, Meta>[]>
   isDirty: ComputedRef<boolean>
-  add: (item: Partial<Item>, afterIndex?: number) => CollectionItem<Item, Meta>
+  add: (item: Item, afterIndex?: number) => CollectionItem<Item, Meta>
   remove: (index: number, isHardRemove?: boolean) => void
   loadData: (items: Item[]) => void
   reset: () => void
 }
 
-export const useCollection = <Item extends Record<string, any>, Meta = Record<string, any>>(
-  createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => ({}) as Meta
+export const useCollection = <Item = any, Meta = any>(
+  createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => undefined as Meta
 ): Collection<Item, Meta> => {
   const items = shallowRef<CollectionItem<Item, Meta>[]>([])
 
@@ -26,7 +26,7 @@ export const useCollection = <Item extends Record<string, any>, Meta = Record<st
     items.value.some(({instance, isRemoved, isNew}) => instance.isDirty.value || isNew.value || isRemoved.value)
   )
 
-  const add = (item: Partial<Item>, index: number = items.value.length) => {
+  const add = (item: Item, index: number = items.value.length) => {
     const instance = useTrackedInstance<Item>(item)
     const newItem = {
       isRemoved: ref(false),
