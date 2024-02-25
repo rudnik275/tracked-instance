@@ -4,10 +4,10 @@
   "description": "Build large forms and track all changes",
   "type": "module",
   "scripts": {
-    "build": "tsc && esbuild ./dist/build/index.js --bundle --external:vue --minify --outfile=./dist/index.js && rm -rf ./dist/build",
+    "build": "esbuild ./src/index.ts --bundle --external:vue --outfile=./dist/index.mjs --format=esm",
     "test": "vitest run"
   },
-  "main": "./dist/index.js",
+  "main": "./dist/index.mjs",
   "types": "./dist/types/index.d.ts",
   "files": [
     "dist"
