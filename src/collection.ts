@@ -26,14 +26,18 @@ export const useCollection = <Item = any, Meta = any>(
     items.value.some(({instance, isRemoved, isNew}) => instance.isDirty.value || isNew.value || isRemoved.value)
   )
 
-  const add = (item: Item, index: number = items.value.length) => {
+  const createItem = (item: Item, isNew: boolean): CollectionItem<Item, Meta> => {
     const instance = useTrackedInstance<Item>(item)
-    const newItem = {
+    return {
       isRemoved: ref(false),
-      isNew: ref(true),
+      isNew: ref(isNew),
       instance,
       meta: createItemMeta(instance)
-    } as CollectionItem<Item, Meta>
+    }
+  }
+
+  const add = (item: Item, index: number = items.value.length) => {
+    const newItem = createItem(item, true)
     items.value.splice(index, 0, newItem)
     triggerRef(items)
     return newItem
@@ -50,15 +54,7 @@ export const useCollection = <Item = any, Meta = any>(
   }
 
   const loadData = (loadedItems: Item[]) => {
-    items.value = loadedItems.map((item) => {
-      const instance = useTrackedInstance<Item>(item)
-      return {
-        isNew: ref(false),
-        isRemoved: ref(false),
-        instance,
-        meta: createItemMeta(instance)
-      } as CollectionItem<Item, Meta>
-    })
+    items.value = loadedItems.map(item => createItem(item, false))
     triggerRef(items)
   }
 
