@@ -203,7 +203,7 @@ export function useTrackedInstance<Data>(
   const changedData = computed(() => _changedData.value.root as DeepPartial<Data>)
 
   const loadData = (newData: Data) => {
-    _data.value = {root: newData} as InternalData
+    _data.value = {root: cloneDeep(newData)} as InternalData
     _originalData.value = {}
   }
 
