@@ -1,6 +1,10 @@
 import {customRef} from 'vue'
 
-export type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T
+export type DeepPartial<Value> = Value extends object
+  ? Value extends Array<infer ArrayValue>
+    ? Array<DeepPartial<ArrayValue>>
+    : { [Property in keyof Value]?: DeepPartial<Value[Property]> }
+  : Value
 
 export interface NestedProxyPathItem {
   target: Record<string, any>
