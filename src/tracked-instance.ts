@@ -1,4 +1,4 @@
-import {get, has, set, unset} from 'lodash-es'
+import {cloneDeep, get, has, set, unset} from 'lodash-es'
 import {computed, Ref} from 'vue'
 import {createNestedRef, DeepPartial, isEmpty, isObject, iterateObject, NestedProxyPathItem} from './utils'
 
@@ -162,7 +162,7 @@ export function useTrackedInstance<Data>(
         snapshotValueToOriginalData(_originalData.value, path, value)
       }
 
-      return Reflect.set(target, property, value, receiver)
+      return Reflect.set(target, property, cloneDeep(value), receiver)
     },
     deleteProperty(target, property) {
       setOriginalDataValue(_originalData.value, parentThree.concat({target, property} as NestedProxyPathItem))
