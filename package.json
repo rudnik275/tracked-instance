@@ -1,6 +1,6 @@
 {
   "name": "tracked-instance",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "Build large forms and track all changes",
   "type": "module",
   "scripts": {
