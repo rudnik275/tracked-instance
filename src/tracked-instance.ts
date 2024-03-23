@@ -127,7 +127,7 @@ export function useTrackedInstance<Data>(
     }
   }))
 
-  const _data = createNestedRef<InternalData>({root: initialData} as InternalData, (parentThree) => ({
+  const _data = createNestedRef<InternalData>({root: cloneDeep(initialData)} as InternalData, (parentThree) => ({
     set(target, property: string, value, receiver) {
       const path = parentThree.concat({target, property, receiver})
       const oldValue = target[property as keyof typeof target]
