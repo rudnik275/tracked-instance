@@ -1,7 +1,7 @@
 import {computed, ComputedRef, ref, Ref, ShallowRef, shallowRef, triggerRef} from 'vue'
 import {TrackedInstance, useTrackedInstance} from './tracked-instance'
 
-export interface CollectionItem<Item, Meta> {
+export interface CollectionItem<Item, Meta = undefined> {
   instance: TrackedInstance<Item>
   meta: Meta
   isRemoved: Ref<boolean>
@@ -17,7 +17,7 @@ export interface Collection<Item, Meta> {
   reset: () => void
 }
 
-export const useCollection = <Item = any, Meta = any>(
+export const useCollection = <Item = any, Meta = undefined>(
   createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => undefined as Meta
 ): Collection<Item, Meta> => {
   const items = shallowRef<CollectionItem<Item, Meta>[]>([])
