@@ -8,7 +8,7 @@ export interface CollectionItem<Item, Meta = undefined> {
   isNew: Ref<boolean>
 }
 
-export interface Collection<Item, Meta> {
+export interface Collection<Item, Meta = undefined> {
   items: ShallowRef<CollectionItem<Item, Meta>[]>
   isDirty: ComputedRef<boolean>
   add: (item: Item, afterIndex?: number) => CollectionItem<Item, Meta>
