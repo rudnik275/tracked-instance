@@ -280,5 +280,6 @@ interface CollectionItem {
   isRemoved: Ref<boolean>
   isNew: Ref<boolean> //weather is new instance. Field can be changed manually or changed in loadData in second argument
   meta: Record<string, any>
+  remove: (isHardRemove?: boolean) => void
 }
 ```

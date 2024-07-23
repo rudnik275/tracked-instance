@@ -62,18 +62,34 @@ describe('Collection', () => {
     })
   })
 
-  describe('delete', () => {
-    const collection = useCollection<Person>()
-    collection.loadData([{name: 'admin'}, {name: 'user'}])
-    collection.add({name: 'new user'})
-    collection.remove(2)
-    collection.remove(1)
+  describe('remove', () => {
+    describe('by index', () => {
+      const collection = useCollection<Person>()
+      collection.loadData([{name: 'admin'}, {name: 'user'}])
+      collection.add({name: 'new user'})
+      collection.remove(2)
+      collection.remove(1)
+      collection.remove(0, true)
 
-    it('Should delete new items when removing it', () => {
-      expect(collection.items.value[0].instance.data.value.name).equal('admin')
-      expect(collection.items.value[1].instance.data.value.name).equal('user')
-      expect(collection.items.value[1].isRemoved.value).equal(true)
-      expect(collection.items.value[2]).undefined
+      it('Should delete new items when removing it and remove hard removed', () => {
+        expect(collection.items.value[0].instance.data.value.name).equal('user')
+        expect(collection.items.value[0].isRemoved.value).equal(true)
+        expect(collection.items.value[1]).undefined
+      })
+    })
+    describe('by collection item method', () => {
+      const collection = useCollection<Person>()
+      collection.loadData([{name: 'admin'}, {name: 'user'}])
+      collection.add({name: 'new user'})
+      collection.items.value[2].remove()
+      collection.items.value[1].remove()
+      collection.items.value[0].remove(true)
+
+      it('Should delete new items when removing it and remove hard removed', () => {
+        expect(collection.items.value[0].instance.data.value.name).equal('user')
+        expect(collection.items.value[0].isRemoved.value).equal(true)
+        expect(collection.items.value[1]).undefined
+      })
     })
   })
 

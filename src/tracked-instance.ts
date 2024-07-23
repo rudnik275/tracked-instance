@@ -19,7 +19,7 @@ class ArrayInOriginalData {
     // length should not include in iterations
     Object.defineProperty(this, 'length', {
       enumerable: false,
-      value: length
+      value: length,
     })
   }
 }
@@ -50,7 +50,7 @@ const setOriginalDataValue = (originalData: Record<string, any>, path: Omit<Nest
 const snapshotValueToOriginalData = (
   originalData: Record<string, any>,
   path: Omit<NestedProxyPathItem, 'receiver'>[],
-  value: any
+  value: any,
 ) => {
   const pathAsString = path.map((i) => i.property)
   const valueInOriginalData = get(originalData, pathAsString)
@@ -72,7 +72,7 @@ const snapshotValueToOriginalData = (
       snapshotValueToOriginalData(
         originalData,
         path.concat({target: oldValue || value, property: key} as Omit<NestedProxyPathItem, 'receiver'>),
-        undefined
+        undefined,
       )
     }
   }
@@ -92,7 +92,7 @@ const snapshotValueToOriginalData = (
       snapshotValueToOriginalData(
         originalData,
         path.concat({target: oldValue || value, property: key.toString()}),
-        value[key]
+        value[key],
       )
     }
   } else {
@@ -111,7 +111,7 @@ export function useTrackedInstance<Data = any>(): TrackedInstance<Data | undefin
 export function useTrackedInstance<Data>(value: Data): TrackedInstance<Data>
 
 export function useTrackedInstance<Data>(
-  initialData?: Data
+  initialData?: Data,
 ): TrackedInstance<Data> {
   type InternalData = { root: Data }
   const _originalData = createNestedRef<DeepPartial<InternalData>>({}, (path) => ({
@@ -124,7 +124,7 @@ export function useTrackedInstance<Data>(
         }
       }
       return result
-    }
+    },
   }))
 
   const _data = createNestedRef<InternalData>({root: cloneDeep(initialData)} as InternalData, (parentThree) => ({
@@ -136,7 +136,7 @@ export function useTrackedInstance<Data>(
         // in case length in array has changed then emit changing of value by index
         const originalDataValue = get(
           _originalData.value,
-          path.map((i) => i.property)
+          path.map((i) => i.property),
         ) as ArrayInOriginalData | undefined
 
         const {length: originalDataLength} = originalDataValue || oldValue as any[]
@@ -167,12 +167,12 @@ export function useTrackedInstance<Data>(
     deleteProperty(target, property) {
       setOriginalDataValue(_originalData.value, parentThree.concat({target, property} as NestedProxyPathItem))
       return Reflect.deleteProperty(target, property)
-    }
+    },
   }))
 
   const data = computed<Data>({
     get: () => _data.value.root,
-    set: (value) => (_data.value.root = value)
+    set: (value) => (_data.value.root = value),
   })
 
   const isDirty = computed<boolean>(() => Object.keys(_originalData.value).length > 0)
@@ -191,7 +191,7 @@ export function useTrackedInstance<Data>(
         const isBothValuesAsArray = value instanceof ArrayInOriginalData && Array.isArray(valueInData)
         const isBothValuesAsObject = isObject(value) && isObject(valueInData)
         return isBothValuesAsObject || isBothValuesAsArray
-      }
+      },
     })
     for (const [path] of originalDataIterator) {
       const valueInData = get(_data.value, path)
@@ -233,6 +233,6 @@ export function useTrackedInstance<Data>(
     changedData,
     isDirty,
     loadData,
-    reset
+    reset,
   }
 }

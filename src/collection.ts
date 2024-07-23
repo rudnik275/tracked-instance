@@ -6,6 +6,7 @@ export type CollectionItem<Item, Meta = undefined> = Raw<{
   meta: Meta
   isRemoved: Ref<boolean>
   isNew: Ref<boolean>
+  remove: (isHardRemoved?: boolean) => void
 }>
 
 export interface Collection<Item, Meta = undefined> {
@@ -18,7 +19,7 @@ export interface Collection<Item, Meta = undefined> {
 }
 
 export const useCollection = <Item = any, Meta = undefined>(
-  createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => undefined as Meta
+  createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => undefined as Meta,
 ): Collection<Item, Meta> => {
   const items = ref<CollectionItem<Item, Meta>[]>([])
 
@@ -27,19 +28,24 @@ export const useCollection = <Item = any, Meta = undefined>(
       {
         instance,
         isRemoved,
-        isNew
-      }
-    ) => instance.isDirty.value || isNew.value || isRemoved.value)
+        isNew,
+      },
+    ) => instance.isDirty.value || isNew.value || isRemoved.value),
   )
 
-  const createItem = (item: Item, isNew: boolean): CollectionItem<Item, Meta> => {
+  const createItem = (item: Item, isNew: boolean) => {
     const instance = useTrackedInstance<Item>(item)
-    return markRaw({
+    const collectionItem: CollectionItem<Item, Meta> = markRaw({
       isRemoved: ref(false),
       isNew: ref(isNew),
       instance,
-      meta: createItemMeta(instance)
+      meta: createItemMeta(instance),
+      remove: (isHardRemove = false) => {
+        const index = items.value.indexOf(collectionItem)
+        remove(index, isHardRemove)
+      },
     })
+    return collectionItem
   }
 
   const add = (item: Item, index: number = items.value.length) => {
@@ -75,6 +81,6 @@ export const useCollection = <Item = any, Meta = undefined>(
     add,
     remove,
     loadData,
-    reset
+    reset,
   }
 }
