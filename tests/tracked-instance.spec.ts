@@ -325,14 +325,14 @@ describe('useTrackedInstance', async () => {
     instance.data.value = externalObject
     externalObject.name = 'Jack'
     
-    expect(externalObject.name).eq( 'Jack')
-    expect(instance.data.value.name).eq( 'John')
+    expect(externalObject.name).eq('Jack')
+    expect(instance.data.value.name).eq('John')
     
     const externalArray = [1]
     instance.data.value = externalArray
     externalArray.pop()
     
-    expect(externalArray.length).eq( 0)
-    expect(instance.data.value.length).eq( 1)
+    expect(externalArray.length).eq(0)
+    expect(instance.data.value.length).eq(1)
   })
 })

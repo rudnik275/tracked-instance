@@ -14,11 +14,11 @@ describe('Collection', () => {
       expect(collection.items.value.map((item) => item.instance.data.value)).to.deep.equal([
         {name: 'admin'},
         {name: 'new user'},
-        {name: 'user'}
+        {name: 'user'},
       ])
     })
   })
-
+  
   describe('isDirty', () => {
     it('Should make collection dirty when some item is "isDirty"', () => {
       const collection = useCollection<Person>()
@@ -39,7 +39,7 @@ describe('Collection', () => {
       expect(collection.isDirty.value).equal(true)
     })
   })
-
+  
   describe('reset', () => {
     const collection = useCollection<Person>()
     collection.loadData([{name: 'admin'}, {name: 'user'}])
@@ -47,7 +47,7 @@ describe('Collection', () => {
     collection.add({name: 'new user'})
     collection.remove(0)
     collection.reset()
-
+    
     it(`Collection shouldn't dirty`, () => {
       expect(collection.isDirty.value).equal(false)
     })
@@ -61,7 +61,7 @@ describe('Collection', () => {
       expect(collection.items.value.map((item) => item.instance.data.value)).deep.eq([{name: 'admin'}, {name: 'user'}])
     })
   })
-
+  
   describe('remove', () => {
     describe('by index', () => {
       const collection = useCollection<Person>()
@@ -70,7 +70,7 @@ describe('Collection', () => {
       collection.remove(2)
       collection.remove(1)
       collection.remove(0, true)
-
+      
       it('Should delete new items when removing it and remove hard removed', () => {
         expect(collection.items.value[0].instance.data.value.name).equal('user')
         expect(collection.items.value[0].isRemoved.value).equal(true)
@@ -84,7 +84,7 @@ describe('Collection', () => {
       collection.items.value[2].remove()
       collection.items.value[1].remove()
       collection.items.value[0].remove(true)
-
+      
       it('Should delete new items when removing it and remove hard removed', () => {
         expect(collection.items.value[0].instance.data.value.name).equal('user')
         expect(collection.items.value[0].isRemoved.value).equal(true)
@@ -92,14 +92,14 @@ describe('Collection', () => {
       })
     })
   })
-
+  
   describe('loadData', () => {
     const collection = useCollection<Person>()
     collection.loadData([{name: 'admin'}, {name: 'user'}])
     it('Should load correct data', () => {
       expect(collection.items.value.map((item) => item.instance.data.value)).to.deep.equal([
         {name: 'admin'},
-        {name: 'user'}
+        {name: 'user'},
       ])
     })
     it(`Loaded items shouldn't equals "isNew"`, () => {
