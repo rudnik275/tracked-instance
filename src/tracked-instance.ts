@@ -1,6 +1,6 @@
-import {cloneDeep, get, has, set, unset} from 'lodash-es'
+import {get, has, set, unset} from 'lodash-es'
 import {computed, Ref} from 'vue'
-import {createNestedRef, DeepPartial, isEmpty, isObject, iterateObject, NestedProxyPathItem} from './utils'
+import {cloneDeep, createNestedRef, DeepPartial, isEmpty, isObject, iterateObject, NestedProxyPathItem} from './utils'
 
 export interface TrackedInstance<Data> {
   data: Ref<Data>
@@ -13,7 +13,7 @@ export interface TrackedInstance<Data> {
 // array values in originalData should store in default object to avoid removing items on change length
 class ArrayInOriginalData {
   length: number
-
+  
   constructor(length: number) {
     this.length = length
     // length should not include in iterations
@@ -42,7 +42,7 @@ const setOriginalDataValue = (originalData: Record<string, any>, path: Omit<Nest
       }
     }
   }
-
+  
   const lastItem = path.at(-1)!
   originalDataTarget[lastItem.property] = lastItem.target[lastItem.property]
 }
@@ -54,7 +54,7 @@ const snapshotValueToOriginalData = (
 ) => {
   const pathAsString = path.map((i) => i.property)
   const valueInOriginalData = get(originalData, pathAsString)
-
+  
   const markRemovedFieldsAsUndefined = (valueInOriginalData?: Record<string, any>, oldValue?: Record<string, any>) => {
     const keysSet = new Set<string>()
     if (valueInOriginalData) {
@@ -76,7 +76,7 @@ const snapshotValueToOriginalData = (
       )
     }
   }
-
+  
   const lastPathItem = path.at(-1)!
   const oldValue = lastPathItem.target[lastPathItem.property]
   if (isObject(value) && (isObject(valueInOriginalData) || isObject(oldValue))) {
@@ -126,21 +126,21 @@ export function useTrackedInstance<Data>(
       return result
     },
   }))
-
+  
   const _data = createNestedRef<InternalData>({root: cloneDeep(initialData)} as InternalData, (parentThree) => ({
     set(target, property: string, value, receiver) {
       const path = parentThree.concat({target, property, receiver})
       const oldValue = target[property as keyof typeof target]
-
+      
       const triggerChangingArrayItems = () => {
         // in case length in array has changed then emit changing of value by index
         const originalDataValue = get(
           _originalData.value,
           path.map((i) => i.property),
         ) as ArrayInOriginalData | undefined
-
+        
         const {length: originalDataLength} = originalDataValue || oldValue as any[]
-
+        
         if (value < originalDataLength) {
           // when removed new value
           for (let i = value; i < originalDataLength; i++) {
@@ -153,7 +153,7 @@ export function useTrackedInstance<Data>(
           }
         }
       }
-
+      
       if (Array.isArray(target) && property === 'length') {
         if (value !== oldValue) {
           triggerChangingArrayItems()
@@ -161,7 +161,7 @@ export function useTrackedInstance<Data>(
       } else {
         snapshotValueToOriginalData(_originalData.value, path, value)
       }
-
+      
       return Reflect.set(target, property, cloneDeep(value), receiver)
     },
     deleteProperty(target, property) {
@@ -169,14 +169,14 @@ export function useTrackedInstance<Data>(
       return Reflect.deleteProperty(target, property)
     },
   }))
-
+  
   const data = computed<Data>({
     get: () => _data.value.root,
     set: (value) => (_data.value.root = value),
   })
-
+  
   const isDirty = computed<boolean>(() => Object.keys(_originalData.value).length > 0)
-
+  
   const _changedData = computed<DeepPartial<InternalData>>(() => {
     const changedData = {} as DeepPartial<InternalData>
     const originalDataIterator = iterateObject(_originalData.value, {
@@ -199,17 +199,17 @@ export function useTrackedInstance<Data>(
     }
     return changedData
   })
-
+  
   const changedData = computed(() => _changedData.value.root as DeepPartial<Data>)
-
+  
   const loadData = (newData: Data) => {
     _data.value = {root: cloneDeep(newData)} as InternalData
     _originalData.value = {}
   }
-
+  
   const reset = () => {
     const updatedData = JSON.parse(JSON.stringify(_data.value))
-
+    
     // iterate over originalData including objects to check array values
     for (const [path, value] of iterateObject(_originalData.value, {includeParent: true})) {
       if (value instanceof ArrayInOriginalData) {
@@ -223,11 +223,11 @@ export function useTrackedInstance<Data>(
         }
       }
     }
-
+    
     _data.value = updatedData
     _originalData.value = {}
   }
-
+  
   return {
     data,
     changedData,

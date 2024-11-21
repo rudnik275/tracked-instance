@@ -22,7 +22,7 @@ export const useCollection = <Item = any, Meta = undefined>(
   createItemMeta: (instance: TrackedInstance<Item>) => Meta = () => undefined as Meta,
 ): Collection<Item, Meta> => {
   const items = ref<CollectionItem<Item, Meta>[]>([])
-
+  
   const isDirty = computed(() =>
     items.value.some((
       {
@@ -32,7 +32,7 @@ export const useCollection = <Item = any, Meta = undefined>(
       },
     ) => instance.isDirty.value || isNew.value || isRemoved.value),
   )
-
+  
   const createItem = (item: Item, isNew: boolean) => {
     const instance = useTrackedInstance<Item>(item)
     const collectionItem: CollectionItem<Item, Meta> = markRaw({
@@ -47,13 +47,13 @@ export const useCollection = <Item = any, Meta = undefined>(
     })
     return collectionItem
   }
-
+  
   const add = (item: Item, index: number = items.value.length) => {
     const newItem = createItem(item, true)
     items.value.splice(index, 0, newItem)
     return newItem
   }
-
+  
   const remove = (index: number, isHardRemove = false) => {
     const item = items.value[index]
     if (item.isNew.value || isHardRemove) {
@@ -62,11 +62,11 @@ export const useCollection = <Item = any, Meta = undefined>(
       items.value[index].isRemoved.value = true
     }
   }
-
+  
   const loadData = (loadedItems: Item[]) => {
     items.value = loadedItems.map(item => createItem(item, false))
   }
-
+  
   const reset = () => {
     items.value = items.value.filter(({isNew}) => !isNew.value)
     for (const item of items.value) {
@@ -74,7 +74,7 @@ export const useCollection = <Item = any, Meta = undefined>(
       item.instance.reset()
     }
   }
-
+  
   return {
     items,
     isDirty,

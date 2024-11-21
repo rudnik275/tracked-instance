@@ -1,4 +1,5 @@
 import {customRef} from 'vue'
+import {cloneDeepWith} from 'lodash-es'
 
 export type DeepPartial<Value> = Value extends object
   ? Value extends Array<infer ArrayValue>
@@ -30,7 +31,7 @@ export const iterateObject = function* (
     goDeepCondition?: (path: string[], value: any) => boolean
     // include parent into separate step when we go deep
     includeParent?: boolean
-  } = {}
+  } = {},
 ) {
   const {goDeepCondition = (_, value) => isObject(value), includeParent = false} = params
   const iterateObjectDeep = function* (path: string[], obj: Record<string, any>): Generator<[string[], any]> {
@@ -46,19 +47,19 @@ export const iterateObject = function* (
       }
     }
   }
-
+  
   yield* iterateObjectDeep([], source)
 }
 
 export const createNestedRef = <Source extends Record<string, any>>(
   source: Source,
-  handler: <InnerSource extends Record<string, any>>(path: NestedProxyPathItem[]) => ProxyHandler<InnerSource>
+  handler: <InnerSource extends Record<string, any>>(path: NestedProxyPathItem[]) => ProxyHandler<InnerSource>,
 ) =>
   customRef<Source>((track, trigger) => {
     // make nested objects and arrays is reactive
     const createProxy = <InnerSource extends Record<string, any>>(
       source: InnerSource,
-      path: NestedProxyPathItem[] = []
+      path: NestedProxyPathItem[] = [],
     ): InnerSource => {
       const currentProxyHandler = handler(path) as unknown as ProxyHandler<InnerSource>
       return new Proxy(source, {
@@ -68,7 +69,7 @@ export const createNestedRef = <Source extends Record<string, any>>(
           const result = currentProxyHandler.get
             ? currentProxyHandler.get(target, property, receiver)
             : Reflect.get(target, property, receiver)
-
+          
           if (isObject(result) || Array.isArray(result)) {
             return createProxy(result, path.concat({target, property, receiver}))
           }
@@ -87,12 +88,12 @@ export const createNestedRef = <Source extends Record<string, any>>(
             : Reflect.deleteProperty(target, property)
           trigger()
           return result
-        }
+        },
       } as ProxyHandler<InnerSource>)
     }
-
+    
     let value = createProxy(source)
-
+    
     return {
       get() {
         track()
@@ -101,6 +102,16 @@ export const createNestedRef = <Source extends Record<string, any>>(
       set(newValue: Source) {
         value = createProxy(newValue)
         trigger()
-      }
+      },
     }
   })
+
+export const cloneDeep = (inputValue: any) => cloneDeepWith(inputValue, (value) => {
+  if (value instanceof Date) {
+    return new Date(value.getTime())
+  }
+  if (value instanceof File) {
+    return value
+  }
+  // Return undefined to let cloneDeepWith handle other types
+})
