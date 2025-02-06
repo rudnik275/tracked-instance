@@ -335,4 +335,19 @@ describe('useTrackedInstance', async () => {
     expect(externalArray.length).eq(0)
     expect(instance.data.value.length).eq(1)
   })
+  
+  it('should isDirty after remove array item', async () => {
+    const instance = useTrackedInstance(['one', 'two'])
+    instance.data.value.splice(1, 1)
+    
+    expect(instance.isDirty.value).eq(true)
+  })
+  
+  it('should keep display "no changes" after remove added value in array', async () => {
+    const instance = useTrackedInstance(['one'])
+    instance.data.value.push('two')
+    instance.data.value.splice(1, 1)
+    
+    expect(instance.isDirty.value).eq(false)
+  })
 })

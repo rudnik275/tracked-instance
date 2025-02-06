@@ -134,21 +134,21 @@ export function useTrackedInstance<Data>(
       
       const triggerChangingArrayItems = () => {
         // in case length in array has changed then emit changing of value by index
-        const originalDataValue = get(
+        const arrayInOriginalData = get(
           _originalData.value,
           path.map((i) => i.property),
         ) as ArrayInOriginalData | undefined
         
-        const {length: originalDataLength} = originalDataValue || oldValue as any[]
+        const originalDataValue = arrayInOriginalData?.length || oldValue
         
-        if (value < originalDataLength) {
+        if (value < originalDataValue) {
           // when removed new value
-          for (let i = value; i < originalDataLength; i++) {
+          for (let i = value; i < originalDataValue; i++) {
             delete receiver[i]
           }
-        } else if (originalDataLength < value) {
+        } else if (originalDataValue < value) {
           // store all removed values as "undefined" when this array values was in data before do some change
-          for (let i = originalDataLength; i < value; i++) {
+          for (let i = originalDataValue; i < value; i++) {
             receiver[i] = undefined
           }
         }
@@ -165,7 +165,8 @@ export function useTrackedInstance<Data>(
       return Reflect.set(target, property, cloneDeep(value), receiver)
     },
     deleteProperty(target, property) {
-      setOriginalDataValue(_originalData.value, parentThree.concat({target, property} as NestedProxyPathItem))
+      const path = parentThree.concat({target, property} as NestedProxyPathItem)
+      snapshotValueToOriginalData(_originalData.value, path, undefined)
       return Reflect.deleteProperty(target, property)
     },
   }))
