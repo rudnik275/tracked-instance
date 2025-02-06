@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && esbuild ./src/index.ts --bundle --external:vue --outfile=./dist/index.mjs --format=esm",
+    "test-ui": "vitest --ui",
     "test": "vitest run"
   },
   "main": "./dist/index.mjs",
