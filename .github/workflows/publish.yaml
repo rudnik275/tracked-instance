@@ -5,12 +5,13 @@ on:
     tags:
       - '*'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Checkout repository
@@ -19,11 +20,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Clear empty auth token set by setup-node
-        run: npm config delete //registry.npmjs.org/:_authToken
+      - name: Show versions
+        run: |
+          node -v
+          npm -v
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
@@ -35,4 +38,4 @@ jobs:
         run: yarn build
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish
