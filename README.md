@@ -1,340 +1,218 @@
-# Tracked instance
+# tracked-instance
+
 <a href="https://www.npmjs.com/package/tracked-instance"><img src="https://img.shields.io/npm/v/tracked-instance.svg?sanitize=true" alt="Version"></a>
 
-# 🚀 Features
-- 🕶 Track what changed in your form
-- 🌎 Send on backend only fields which changed
-- 📦 Build multiple requests only for items that have been changed/removed/added
-- 🦾 Type Strong: Written in TypeScript
+> Track form changes in Vue 3 and send only modified fields to the backend — no more diffing payloads by hand.
 
-# Description
-Build large forms and send all requests in one take.
-Combination of useTrackedInstance and useCollection can manage very large form with entities which deeply related each other.
-You can control what data should be sent to the server so that only what has changed is sent.
-Tracked instance is not so much about managing forms, but about building and optimizing queries.
+```js
+const {data, changedData, isDirty} = useTrackedInstance({name: 'Jack', age: 30})
 
-#  Install
-> npm i tracked-instance
+data.value.name = 'John'
 
-# Support
-Supports Vue 3.x only
+changedData.value  // { name: 'John' }   ← only what changed
+isDirty.value      // true
 
-# Usage
+data.value.name = 'Jack'  // revert
+changedData.value  // undefined           ← back to clean
+isDirty.value      // false
+```
 
-## Tracked instance
+## Install
 
-Track everything what was changed
+```bash
+npm i tracked-instance
+```
 
-```javascript
+Supports **Vue 3** only.
+
+---
+
+## useTrackedInstance &nbsp;·&nbsp; [▶ Try on playground](https://play.vuejs.org/#eNqtVttuGzcQ/ZWpglYyoJuV1AnWstI29kPS1jFivxTQC3eXq2XEJQmSK1mQDeQPArQFigIF+tZvKFCgH+MfaD+hQ+5FK8WXFg1sCEvOkHPOcOaQ69aXSvUXOW0FrbGJNFMWDLW5Ak7E7GjasmbamkwFy5TUFtagaQLXkGiZQRuXtRum3NALTaI5jV8KY4mIaO1pi/keKw24bCrsSlH4Vi4YhSNYTwUAiwMQeRZS7UaWWU4DMFYzMXMTK0p05QBX+MG5X2XO8pAzk1JcHkrJKcHdAWKmaWQlLvGbAwiSbe13PRX4PxWRRFhIICaWdCFKkTmNj/2AmWOm7aoLXJJySlNMEDI7uoXw2NOZdGo2+90Gk3bbjyoanPvhFvyEcEP9dAN9Cbzdhms0Xe85zBWeu0JdpBSOiZ7D14LNUtuMPBoOn30Y2er8zsAvUs2MlSrFvJ9KrIwmkiJ7zJyTBeYV04Il0vE80FwYOTH2nAp7RlYOd+EzfkMjqeNxcR5dyMVcyKWYlCc76bjfRgRDFq5QiFmJCDp7cDQpi6aM3F8QnjsPx8QZdqLW9lfnr0/7imhDO/6zAMCSVadx9IX3HsYHIEvCLAi6hDOsZobrtIuOZXDBMipz29FdeDYcFt71ybhyKre5FafPkS/B8aBoPWw0HFiaKU4sxRHAOGYLLNkVp9iMMTNoWQUJp5eHMCMqGD1R+JVIYXsJyRhfBYYI0zNUs+QQFIljjBjsH6hL38ZFH2zt6fYK9r3V2dCaPp6cxEg4c7U8HuCwWohGTkLKJxeuysahrhehhQmVW1j0MhlT7sA6+r4cpy1wve7UhF5aHFWxlyy2abA/HH6Kk4MNgkERxQUoguyE/w7r+L7o/UIjKhCu7DcYSoH5/yhQGXyj/Js8VE3Vdx310fPxUPRGo29iRymN5qHEwmiEAth4Phw9zK2VAr6IOIvmuKWXRtwvwEIlIacxzn1SSihW2M3Pf/z1+3t447zGg2JxHfkzERp1eOfWrvvv2BmururmatQxwHq9kaXn0C6+bt791gbUtL9//f5PwClaCr5BTcNWrDhvoRsPsGP+Q/tsIJxbbOQdbuhjFBEQVHusIZLcCW5FCME+ogdP6WjkoT4aPSX0YIgAt+iVBOslNz+9RxF1iYo3nHD5zS8/ePGMmwwdKYeiUWTbjR5OGmqI+ZjAzbsfYZkSCzNqDaqfsGAlWLxoUG4WVAf1WqVxriQX4gU50zIXcfAo+dz9NXRp5NQrxFuA6p4mMctNgFJ1CBkTvZS6iys4GHrtQqoNPPAc+XaEtKk729Kw5/iNBxi8yaNSU+wJliCenVthK6NI+hs0F9xU4RA47g2Xu7hRkpBk/0FuBZXdC3GDuzqMrUtguwKr7y2nVrdVPMR6GVH9t0YKfNH5+3FaGvAhV7+EUHl2XmTOOG2l1ioTDAa5UPNZP5LZ4EO/6uWEEa3Bqzlhs514uE4xTvVrZRle3VtxCedy+crP1S8Ov8ap0S3zbw2mzEE7c+KCZTZt1TZLNJZiYT45P/VaWhtRAHN39dxjRCGSPHcYC7ev8CARdsPPo33p04dnemFOLi0VpiJVPTTcW8h543v4xT3UN3Af95/UWbz+B3cQyP8=)
+
+Track changes to a single object, primitive, or array.
+
+```js
+import {useTrackedInstance} from 'tracked-instance'
+
 const {data, changedData, isDirty, loadData, reset} = useTrackedInstance({
   name: 'Jack',
-  isActive: false
+  isActive: false,
 })
 ```
-Do some changes and see only changed field in changedData.
-Then set previous value and see what changedData is empty.
-That guaranty what you always get real changes
-```javascript
-data.value.name = 'John'
-console.log(isDirty.value) // true
-console.log(changedData.value) // {name: 'John'}
 
+**Mutate `data.value` directly** — `changedData` and `isDirty` update automatically:
+
+```js
+data.value.name = 'John'
+isDirty.value      // true
+changedData.value  // { name: 'John' }
+
+// Revert to original value → field disappears from changedData
 data.value.name = 'Jack'
-console.log(isDirty.value) // false
-console.log(changedData.value) // undefined
+isDirty.value      // false
+changedData.value  // undefined
 ```
-Rollback initial value:
-```javascript
+
+**`reset()`** — revert all changes back to the last loaded baseline:
+
+```js
 data.value.name = 'John'
 reset()
-console.log(data.value) // { name: 'Jack', isActive: false }
-console.log(isDirty.value) // false
-console.log(changedData.value) // undefined
-```
-All changes should be replaced by new loaded data.
-The data will be considered not dirty
-```javascript
-data.value.name = 'John'
-data.value.isActive = true
-loadData({
-  name: 'Joe',
-  isActive: false
-})
-console.log(isDirty.value) // false
-console.log(data.value) // { name: 'Joe', isActive: false }
+data.value  // { name: 'Jack', isActive: false }
 ```
 
-Can accept primitive values or arrays
-```javascript
+**`loadData(newData)`** — replace data without marking anything dirty (use after a successful save):
+
+```js
+loadData({name: 'Joe', isActive: true})
+isDirty.value  // false  ← Joe is now the new baseline
+```
+
+Works with primitives and arrays too:
+
+```js
 useTrackedInstance(false)
-useTrackedInstance([1,2,3])
+useTrackedInstance([1, 2, 3])
 ```
 
-### Custom equality with `equals` option
+### Custom equality with `equals`
 
-By default, values are compared with strict equality (`===`). You can override this with a custom `equals` function that is called for primitive leaf values.
+By default values are compared with `===`. Override this for edge cases — for example when a UI component writes `null`
+but the backend sends `""`:
 
-A common use case is treating `null` and `""` as equivalent — for example, when a UI component (like Vuetify's text field with a clear button) sets a value to `null`, but the original data used `""`:
-
-```javascript
-const { data, isDirty } = useTrackedInstance(
-  { comment: null },
-  { equals: (a, b) => (a ?? '') === (b ?? '') }
+```js
+const {data, isDirty} = useTrackedInstance(
+  {comment: null},
+  {equals: (a, b) => (a ?? '') === (b ?? '')}
 )
 
-data.value.comment = ''   // treated as equal to null
-console.log(isDirty.value) // false
+data.value.comment = ''     // treated as equal to null
+isDirty.value               // false
 
-data.value.comment = 'hello'
-console.log(isDirty.value) // true
+data.value.comment = 'hi'
+isDirty.value               // true
 ```
 
-The `equals` function receives the two values being compared and should return `true` if they are considered equal. It is only called for primitive values — object and array fields are always compared by recursing into their properties.
+---
 
-### Real-world example
-[Try on playground](https://play.vuejs.org/#eNqNVc1u00AQfpXBl7RSapfCAVlJVGh7KEiloj36srEn8TbrtbU/aaMoz4DEjROvgYTEw/AC8AjM7tqpaarSm+d/vplv1uvobdPES4tRGo10rnhjQKOxzSSTvGpqZWBtNV4rli+wOJfaMJnjBmaqrmBggvqAt/pBJjOZ1yTBumCGDSEvmZxjceoFrk+5MqshKKQaQxA185YNjGG3yN46kwCGG4EpDAZDJ62QqRSkFcKLXF/aqeC6xCKFGRMavbpAw7jQKfgMAEkCuqytKGCKYBvqDOlzta3vvDaZ3Oy79sk5uACX3HAmwCGBW24ohYGKLRBmtaqgcFgy2SUJ7XJq5KVvomv8ukQ4ZWoBHySfl6aP4+jw8M0uDqPs4zCoIOampsBWASBZ5WqclIprUzclKrioBZMDh9l3qRHbJWgCBBK1A79kwqIOWQh5D37YnmZLPGmjxrC3D+NJKLpF64YS+zQURtGjJLCHeEOCwaoRNEOSAEYFX07a3VPv644HsNmMEmfzTqWCJHxNrTG1hONc8HwxziLPliya/Pr64/f3z/DJiaMkePlyFOOxHms7rbiJG4VLlIZCezgoQcA74rKxppvg8qCqCxTk6xH5rWVRZzWrBslk8I4aaMn0VJpY2mqKqsvm1ryTLLg8K12Xp8ePnXR5ifliWt/1Ez4jZUuuuCNV7Kj0X+Bt4jD7B75h+Pcp0oJrNhVYkO1Fu/LO2oIG+PPty0+4oi11JG0r3K/XCW673abLo0nYaOEPMx0lpPEWWvuE2NV7cjzDnNrxs8fJaBiFx+2gYk18o2tJz5/nd9YaiC7bM6MxPHjnnDGLSmManSaJlc1iHud1lez6dbdFFY2m25rx+YN6FNdwgepjYzjd3j91mRD17Xuv274KPsbt/BH9jSYauNYu3c2oJTWwtRmm5u6MnPns6sIvdmskaljH+yeMdHa1sK7H4PbOyoLa7vn5bs/9+LicX+uzO4NSd6Bco34a3j+L6J9z8gT0+3Zfxa+3U9z8BYQrOQM=)
-```vue
-<script setup>
-  import {useTrackedInstance} from 'tracked-instance'
+## useCollection &nbsp;·&nbsp; [▶ Try on playground](https://play.vuejs.org/#eNqVWNtu2zYYfhXWA2oZcOQ4SdNWcbz1EGAtijRoMuyi7gUtUTYbmdJEyomXBujVboudUAwY1rsBe4MBA/YweYH1Efb/pA6U7JzcopX4n08fSZ21HiWJO89Yy2sNpJ/yRBHJVJaQiIrJ7qil5Kg1HAk+S+JUkTOSsrBL/HiWZIoF5JyEaTwjbVDQtpgyyZ7EUcR8xWNRMqmU+scsWONCKip8lBgJtUgY+UaylOySs5EghAceEdlszFJ8E3TGPCJVysVkJM5Rwo9BHoxwxWayS7h8ylO16BIaBF1wbxbPWZdEMQ2eUkVxBeIBH3brXg3Q5tDpoMaC2XmNJkEzuNDv5rbbz8HrNjnvVrSNihZPRZ22adGYIb3RRozbgp3sAxm8gUQ67bZFAv/zPDgdsjvMsxES504u5M5plDEXcjFzOh1QoLIUpAlKOsY6RMFcEZ84ncKNVbLkHMxCbm0SmG1DQawMJ3SBiQFCUW7HOOZoz/yUgTHPlMHowGVC3JBHiqUOR17ucrnPTnIbd++SO7jySlcpMKvaFxCb0aSUyTvEDaAqORckEhmzBNauNautXGMXVy1TeR9d4pOJGX+Y5pUeujzQfaAFXdfi8acwS0y3mGHN+c47RVQBi9jNkrkUQj3UmyUTXEXLYL8qN5eHdA5TlrdmSCOJ2gwxolIdMqEOyp4AnoGDwxuHRafkHpB3ML9RNHTwX8uApHPsMioXwq+1eG647EOVmugbRkv688OX+25CU8kc/WjQgYcLp+6Itg3TcUK5HjxyADDEQQogIY7QmSFi3RGfsThTxWqXPFhfL2RLZDBpXSrPqrZb1dzXtzfy5UaXEqJrcVVGMNO12UVHX9AxixBN8MUjRbGsGDqvDdC+qeMNcizFkcMNoJxipwrgzSBt0MbdIIpTWPmC3d/yN30AvYamqjuXtEBZbA0b9ynbXl/SsHpGl5TN4oCHvOHT9n22sZFrbAr4EaPC5n54j96j25ob/g56ZkeE/Q9ewJMkAuyBN0IGAZ/DtrSIGOyRAZdAWXhhxE53yIQm3sZWAk9hLNRaSGc8WniSCrkG8M7DHZiXIID6ev3t5FTvrtggNY2oyeuXNKBON8tnovdLSe6KsUx2qtWBTKggXqHjrAgrzxr50kpHPdmVHfydwV5SiVx8/EAygcMbEANkUotf/P6zHukAFOjk5k700IvK7552vHyFICve+VoYp+CprjLs5CJgpx34z/ToqFVxesdsAYyao7ZeBmsHUNSDtDGP7RKV8UcjPhHPUD/WH2aJpXUGLB9pP0gacjOaTrh4HCsVwzAt0+OE+lyBzVXTA3lcd7fuQdr6lQykvXix0j/gAvZaW/N8DfqaRRh+bRgsOMet3k4LJAZyQMcRC0qxukd1boQGPOvBVNiEnlW5Fe2F7X3Iv8ezTr+P+SgbrkAfXdiOq5e7ZMbFtzxQU+DfXgf+pcbDVsPma4ijW6t7zFoaZ1AZAcniITh3Z3XM5Cs/4v4xMBj0ckzLgRufP338cdAzSuxqlGoZQHAlvrLIBVC3hhc//EVeManilFlKl9TWq6wdvwLvzGbfQNR6HRv+FWr0ERiOuhZvPe+//fPf3x/s/DYSMejB3DbG+Ar0g+HYyQdmTcWJ19+wcK5qcquz86MoVAhU+WwaRwFDZIA48die6sMs1g9wIEtcPbZAzo/MQMBWbRatzEbJNrz441fyKAhuF6AdiY3YK23pXIND9gDeyeuIDuhUY3PApYRG0YqeW4L1pglE3UsskHfvyuPDKlTPj3gA6+bp4v2fGsw/f/rpXwJLrIL4+sBdkq/l3F2/jb1i32UwG8WpsblDjEtpgyb5NgVKDl4eHpEetoMkjrl+dMCzSnmSslJ4DLe2SRpnIvC+YDSkYd/adwF9dsg4TqHJ1lIa8Ex6prCQpOIMaQy4ERMTNYWM1df1Dvj+F0zToAd2r4zAbLoYwaOjJ1/nIfQ8HhDHXGduFkbIwofMv2UYxsByGGb9dmHo4x2of7r3Yu9orxaHucDcMI6ABbeOwxhYjsOsXxVHcW4rILZxiG6M8/AFkOFaIJRnB3NVOOv454bhNC9Slb/FYNWOmfakFU8WS6vbMt9c1uB24b6VsYDPOPooBFuAJsApyjMne1xrfoFB4qg1VSqRXq+XieR4Apv1rLfMhxrwUAwWlYQ7RsgnDXv4kYBHLH2Z4OeVul0AuvjkuV7Dy11+cAKZKfOPV6y/lZAudO0A4TRFuCtpCtAYERbJe4f7+shSEmE/yaI8rEuIAL1xlKGPhu0xFBHctvi0t890+qCeR3LvVDEhi6CK26n56DNqwaevJ1eEXrm76W6VWTz/H3JkTSU=)
 
-  const {data, changedData, isDirty, reset, loadData} = useTrackedInstance({
-    title: '',
-    year: null,
-    isPublished: false,
-    details: {
-      // should be updated by loadData
-    }
-  })
+Track an array of items — add, remove, modify, and reset the whole list.
 
-  // update initial data without make form dirty
-  loadData({
-    id: 1,
-    title: 'The Dark Knight',
-    year: 2008,
-    isPublished: true,
-    details: {
-      director: {
-        name: 'Christopher Nolan' // form see changes in nested values
-      }
-    }
-  })
+```js
+import {useCollection} from 'tracked-instance'
 
-  const saveChanges = () => {
-    loadData(data.value)
-  }
-</script>
-
-<template>
-  <div>isDirty: {{ isDirty }}</div>
-  <hr />
-  <button @click="reset">♻️ Reset</button>
-
-  <form @submit.prevent="saveChanges">
-    <input
-      v-model="data.title"
-      type="text"
-    />
-    <input
-      v-model.number="data.year"
-      type="number"
-    />
-    <input
-      v-model="data.isPublished"
-      type="checkbox"
-    />
-
-    <input
-      v-model="data.details.director.name"
-      type="text"
-    />
-
-    <button
-      type="submit"
-      :disabled="!isDirty"
-    >
-      💾 Save changes
-    </button>
-  </form>
-
-  <h2>Changed data:</h2>
-  <pre>{{ changedData }}</pre>
-</template>
-
-```
-
-## Collection
-
-```javascript
-const {isDirty, add, items, remove, reset, loadData} = useCollection()
+const {items, isDirty, add, remove, loadData, reset} = useCollection()
 
 loadData([{name: 'Jack'}, {name: 'John'}, {name: 'Joe'}])
 ```
-Should be dirty on make some changes, remove or add item
-```javascript
+
+Each item in `items` is a `CollectionItem` with its own `TrackedInstance`:
+
+```js
 items.value[0].instance.data.value.name = 'Stepan'
-console.log(isDirty.value) // true 
-```
-Add new item:
-```javascript
-const addedItem = add({name: 'Taras'})
-console.log(addedItem) // {instance: TrackedInstance<{name: 'Taras'}>, isRemoved: false, isNew: true, meta: undefined}
-```
-Add new item in specific position:
-```javascript
-add({name: 'Taras'}, 0)
+isDirty.value  // true
 ```
 
-Item should be softly removed and can be reverted by reset()
-```javascript
-remove(0)
-remove(0, true) // hard remove
+**`add(item, index?)`** — add a new item (marked `isNew: true`):
+
+```js
+const newItem = add({name: 'Taras'})
+// newItem.isNew.value === true
+// newItem.isRemoved.value === false
+
+add({name: 'Taras'}, 0)  // insert at position 0
 ```
 
-Reset all changes including changing data on each item
-```javascript
+**`remove(index, isHardRemove?)`** — soft-delete by default, hard-delete with `true`:
+
+```js
+remove(0)        // soft remove: isRemoved = true, item stays in array
+remove(0, true)  // hard remove: spliced out immediately
+```
+
+Soft-removed items can be restored with `reset()` or by setting `isRemoved.value = false` manually.
+
+**`reset()`** — removes new items, restores soft-removed ones, reverts all changes:
+
+```js
 reset()
 ```
 
-Item meta. Additional custom fields which can watch on item instance. 
-If set then should be applied to each item which was added by add() or loadData()
-```javascript
+### Item meta
+
+Attach computed or reactive metadata to each item via a factory function:
+
+```js
 const {add, items} = useCollection(instance => ({
   isValidName: computed(() => instance.data.value.name.length > 0)
 }))
 
 add({name: ''})
-
-console.log(items.value[0].meta.isValidName.value) // false
+items.value[0].meta.isValidName.value  // false
 ```
 
-### Real-world example
-[Try on playground](https://play.vuejs.org/#eNp9VcFy0zAQ/ZWtL3ZnUvsAp5BmKG0P9FCYFk6Yg2sriRpZ9khymk7G38DADMNwob/BDDN8DD9AP4GVZDuym3BJLO1q973dp9XGOynLcFURb+xNZCpoqUASVZXTmNO8LISCjSCzGmaiyMFHR39rqCQ5LRgjqaIFb12USNIlyY4olyrhqfaPeVrgCjZUnlGh7keQZNkIqCK5HIEgebEi+h8Tj4AVSXaWqKSGY+glCA51pNYcfNjwJCdj8C8wn1+PoFsXC95fE7/+aA5bGJzcvZdEXKIZcyC7wPcds0xW5HSR8DmRaA4O4XgKm5hDhyzQC7Dww1XCKmI3AMIZZYqIQJv0sQP9EVJ5ZShm1hlTNd55UgbG1+Swvk3VwgwTOf74U8d8EtkWYXNwgf4lSxTBFcDkplKqwG0deZxRmdwwkh3H3kFT9Niztpcpo+kSDQ5PazNxAB4fvvyGazRC2lh1+MjGd3NtQ5nWxd70z/dff39+giu97J9YCIgMavzO6GragBrDZgPNN9T1JNI2x80iOsky3TQtBzG2WxPKy0q1lVwd5UVGGCJxetsSBlD3JUGbImsEaTc1GBNnSAWVGTTKcWLVhy8GsvF9zffHVwNOA+vzdYlUrE3WdgwBzwqB2Uz38SbwjKwP8c+KCiO30CeMojOdmUbuEJPjOixKvzD71BVqrttS7SmXW7KdZbOXOLBEENTjw7fPqAO92StM73gfaY/kJblrCbpeXb4+HaM/nA+Or5MNwNWlg+IpMJPYinKAA9XZ9SRitO1o1L+Ekem1/my6ZBtqROvowDTVKsCMirbx7fwIqJ0IT0fHtt0dxj09dQEPu7VLSajpWcKkVlRbLhy9NzhcB3Xq6DdsezXwRp59HY5wuIW3suD4sJjpiVmNAdWNBbahUGSD10IbY2+hVCnHUVTxcjkP0yKPnvrpCMiwxoxK4uSe0fkgH54rKSPiTamfj37ehLHi7sLsKVGRUbufLki63LF/K9cW2lutNbFCAJ1NJWKux582n19fmmvTGfH+VayhtceIsixYpTFat1cVzxC242fQvjblo3z+Tp6vFeGyJaWBmmoY/9jDR/r0P9S3cJ+Fz7sq1v8AiAKmmg==)
-```vue
-<script setup>
-  import {ref} from 'vue'
-  import {useCollection} from 'tracked-instance'
+The same `options` (including `equals`) are forwarded to every `TrackedInstance` in the collection:
 
-  const {isDirty, add, items, remove, reset, loadData} = useCollection()
-
-  loadData([{name: 'Jack'}, {name: 'John'}, {name: 'Joe'}])
-
-  const newUserName = ref('')
-
-  const saveChanges = () => {
-    loadData(
-      items.value
-        .filter(item => !item.isRemoved.value)
-        .map((item) => item.instance.data.value)
-    )
-  }
-</script>
-
-<template>
-  <button
-    :disabled="!isDirty"
-    @click="saveChanges"
-  >
-    💾 Save changes
-  </button>
-  <button @click="reset">♻️ Reset</button>
-  <hr />
-
-  <div>isDirty: {{ isDirty }}</div>
-
-  <div>
-    Add new user:
-    <input
-      v-model="newUserName"
-      type="text"
-    />
-    <button @click="add({name: newUserName}); newUserName = ''">➕ Add user</button>
-  </div>
-
-  <ul>
-    <template v-for="(item, index) in items">
-      <li v-if="!item.isRemoved.value">
-        <input
-          v-model="item.instance.data.value.name"
-          type="text"
-        />
-        <button @click="remove(index)">🗑 Remove</button>
-        <button
-          v-if="!item.isNew.value"
-          @click="item.instance.reset()"
-        >
-          ♻️ Reset
-        </button>
-        isNew: {{ item.isNew.value }}
-      </li>
-    </template>
-  </ul>
-
-  Removed items:
-  <ul>
-    <li v-for="item in items.filter((i) => i.isRemoved.value)">
-      {{ item.instance.data.value.name }}
-      <button @click="item.isRemoved.value = false">♻️ Rollback</button>
-    </li>
-  </ul>
-</template>
-```
-
-# Documentation
-## useTrackedInstance(initialData?, options?)
-
-```typescript
-useTrackedInstance<Data>(initialData?: Data, options?: TrackedInstanceOptions): TrackedInstance<Data>
-```
-
-### Options
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `equals` | `(a: unknown, b: unknown) => boolean` | Custom equality function for primitive leaf values. Replaces default `===`. |
-
-### TrackedInstance
-
-- **data** — reactive reference to the current data. Mutate it directly to track changes.
-- **changedData** — only the modified fields, deeply nested. `undefined` when nothing has changed.
-- **isDirty** — `true` when any field differs from the original.
-- **loadData(newData)** — replace data and clear dirty state (new baseline).
-- **reset()** — revert all changes back to the last `loadData()` baseline.
-
-## useCollection(createItemMeta?, options?)
-
-```typescript
-useCollection<Item, Meta>(
-  createItemMeta?: (instance: TrackedInstance<Item>) => Meta,
-  options?: TrackedInstanceOptions,
-): Collection<Item, Meta>
-```
-
-The `options` object (including `equals`) is passed to every `TrackedInstance` created inside the collection — both from `loadData()` and `add()`.
-
-```javascript
-const { items, isDirty } = useCollection(
+```js
+const {items} = useCollection(
   () => undefined,
-  { equals: (a, b) => (a ?? '') === (b ?? '') }
+  {equals: (a, b) => (a ?? '') === (b ?? '')}
 )
 ```
 
-### Collection
+---
 
-- **items** — reactive array of `CollectionItem`.
-- **isDirty** — `true` if any item is dirty, new, or soft-removed.
-- **add(item, index?)** — add a new item (marked `isNew`). Appended to end by default.
-- **remove(index, isHardRemove?)** — soft-remove by default (`isRemoved = true`). Pass `true` to hard-delete from array.
-- **loadData(items)** — replace all items and clear dirty state.
-- **reset()** — remove new items, restore soft-removed items, and reset all instance data.
+## API Reference
+
+### useTrackedInstance(initialData?, options?)
+
+```typescript
+useTrackedInstance<Data>(initialData ? : Data, options ? : TrackedInstanceOptions)
+:
+TrackedInstance<Data>
+```
+
+| Option   | Type                                  | Description                                                |
+|----------|---------------------------------------|------------------------------------------------------------|
+| `equals` | `(a: unknown, b: unknown) => boolean` | Custom equality for primitive leaf values. Replaces `===`. |
+
+| Return              | Type                     | Description                                                 |
+|---------------------|--------------------------|-------------------------------------------------------------|
+| `data`              | `Ref<Data>`              | Reactive reference to current data. Mutate directly.        |
+| `changedData`       | `Ref<DeepPartial<Data>>` | Only modified fields. `undefined` when nothing has changed. |
+| `isDirty`           | `Ref<boolean>`           | `true` when any field differs from the original.            |
+| `loadData(newData)` | `void`                   | Replace data and clear dirty state (new baseline).          |
+| `reset()`           | `void`                   | Revert all changes back to the last `loadData()` baseline.  |
+
+### useCollection(createItemMeta?, options?)
+
+```typescript
+useCollection<Item, Meta>(
+  createItemMeta ? : (instance: TrackedInstance<Item>) => Meta,
+  options ? : TrackedInstanceOptions,
+)
+:
+Collection<Item, Meta>
+```
+
+| Return                         | Type                    | Description                                                      |
+|--------------------------------|-------------------------|------------------------------------------------------------------|
+| `items`                        | `Ref<CollectionItem[]>` | Reactive array of collection items.                              |
+| `isDirty`                      | `ComputedRef<boolean>`  | `true` if any item is dirty, new, or soft-removed.               |
+| `add(item, index?)`            | `CollectionItem`        | Add a new item. Appended to end by default.                      |
+| `remove(index, isHardRemove?)` | `void`                  | Soft-remove by default. Pass `true` to splice from array.        |
+| `loadData(items)`              | `void`                  | Replace all items and clear dirty state.                         |
+| `reset()`                      | `void`                  | Remove new items, restore soft-removed, reset all instance data. |
 
 ### CollectionItem
 
 ```typescript
 interface CollectionItem<Item, Meta = undefined> {
-  instance: TrackedInstance<Item>  // the tracked instance for this item
-  isRemoved: Ref<boolean>          // true after soft remove
-  isNew: Ref<boolean>              // true for items added via add(), false for items loaded via loadData()
-  meta: Meta                       // custom metadata from createItemMeta(), undefined by default
-  remove: (isHardRemove?: boolean) => void  // shortcut: removes self from collection
+  instance: TrackedInstance<Item>                 // tracked instance for this item
+  isNew: Ref<boolean>                             // true for items added via add()
+  isRemoved: Ref<boolean>                         // true after soft remove
+  meta: Meta                                      // custom metadata from createItemMeta()
+  remove(isHardRemove?: boolean): void            // shortcut to remove self
 }
 ```
