@@ -209,7 +209,7 @@ export function useTrackedInstance<Data>(
   }
   
   const reset = () => {
-    const updatedData = JSON.parse(JSON.stringify(_data.value))
+    const updatedData = cloneDeep(_data.value)
     
     // iterate over originalData including objects to check array values
     for (const [path, value] of iterateObject(_originalData.value, {includeParent: true})) {

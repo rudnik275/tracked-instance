@@ -12,7 +12,7 @@ export type CollectionItem<Item, Meta = undefined> = Raw<{
 export interface Collection<Item, Meta = undefined> {
   items: Ref<CollectionItem<Item, Meta>[]>
   isDirty: ComputedRef<boolean>
-  add: (item: Item, afterIndex?: number) => CollectionItem<Item, Meta>
+  add: (item: Item, index?: number) => CollectionItem<Item, Meta>
   remove: (index: number, isHardRemove?: boolean) => void
   loadData: (items: Item[]) => void
   reset: () => void
