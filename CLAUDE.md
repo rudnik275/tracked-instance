@@ -44,6 +44,10 @@ interface TrackedInstance<Data> {
 }
 
 // src/collection.ts
+interface CollectionOptions<Item, Meta = undefined> extends TrackedInstanceOptions {
+  createItemMeta?: (instance: TrackedInstance<Item>) => Meta  // factory for per-item metadata
+}
+
 interface Collection<Item, Meta = undefined> {
   items: Ref<CollectionItem<Item, Meta>[]>
   isDirty: ComputedRef<boolean>          // true if any item is dirty, new, or removed
@@ -132,19 +136,21 @@ yarn test    # vitest run
 
 ## Release workflow
 
+**npm publish is fully automated via GitHub Actions.** Pushing a git tag triggers the CI pipeline which runs tests, builds, and publishes to npm automatically (NPM_TOKEN is a GitHub repo secret). Never run `npm publish` manually.
+
 When asked to commit and there are changes worth adding to CHANGELOG.md, first ask:
 > "Will there be any more changes in this version?"
 
 If **yes** — commit normally, update CHANGELOG.md but don't tag yet.
 
 If **no** — do the full release:
-1. Update `CHANGELOG.md` with all changes for this version (format: `## [x.y.z] - YYYY`)
+1. Update `CHANGELOG.md` with all changes for this version (format: `## [x.y.z] - YYYY-MM-DD`)
 2. Bump version in `package.json`
 3. Run `yarn build` and `yarn test` to verify
 4. Commit: `git commit -m "x.y.z"`
 5. Tag: `git tag x.y.z`
-6. Push commit and tag: `git push && git push --tags`
+6. Push commit **and** tag: `git push && git push --tags`
 
-GitHub Actions picks up the tag and runs tests, build, then `npm publish` automatically (NPM_TOKEN is configured as a GitHub repo secret).
+The tag push triggers GitHub Actions → tests → build → `npm publish`. No manual publish step needed.
 
 Version bumping follows semver: patch for fixes, minor for new features, major for breaking changes.

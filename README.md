@@ -70,6 +70,27 @@ useTrackedInstance(false)
 useTrackedInstance([1,2,3])
 ```
 
+### Custom equality with `equals` option
+
+By default, values are compared with strict equality (`===`). You can override this with a custom `equals` function that is called for primitive leaf values.
+
+A common use case is treating `null` and `""` as equivalent — for example, when a UI component (like Vuetify's text field with a clear button) sets a value to `null`, but the original data used `""`:
+
+```javascript
+const { data, isDirty } = useTrackedInstance(
+  { comment: null },
+  { equals: (a, b) => (a ?? '') === (b ?? '') }
+)
+
+data.value.comment = ''   // treated as equal to null
+console.log(isDirty.value) // false
+
+data.value.comment = 'hello'
+console.log(isDirty.value) // true
+```
+
+The `equals` function receives the two values being compared and should return `true` if they are considered equal. It is only called for primitive values — object and array fields are always compared by recursing into their properties.
+
 ### Real-world example
 [Try on playground](https://play.vuejs.org/#eNqNVc1u00AQfpXBl7RSapfCAVlJVGh7KEiloj36srEn8TbrtbU/aaMoz4DEjROvgYTEw/AC8AjM7tqpaarSm+d/vplv1uvobdPES4tRGo10rnhjQKOxzSSTvGpqZWBtNV4rli+wOJfaMJnjBmaqrmBggvqAt/pBJjOZ1yTBumCGDSEvmZxjceoFrk+5MqshKKQaQxA185YNjGG3yN46kwCGG4EpDAZDJ62QqRSkFcKLXF/aqeC6xCKFGRMavbpAw7jQKfgMAEkCuqytKGCKYBvqDOlzta3vvDaZ3Oy79sk5uACX3HAmwCGBW24ohYGKLRBmtaqgcFgy2SUJ7XJq5KVvomv8ukQ4ZWoBHySfl6aP4+jw8M0uDqPs4zCoIOampsBWASBZ5WqclIprUzclKrioBZMDh9l3qRHbJWgCBBK1A79kwqIOWQh5D37YnmZLPGmjxrC3D+NJKLpF64YS+zQURtGjJLCHeEOCwaoRNEOSAEYFX07a3VPv644HsNmMEmfzTqWCJHxNrTG1hONc8HwxziLPliya/Pr64/f3z/DJiaMkePlyFOOxHms7rbiJG4VLlIZCezgoQcA74rKxppvg8qCqCxTk6xH5rWVRZzWrBslk8I4aaMn0VJpY2mqKqsvm1ryTLLg8K12Xp8ePnXR5ifliWt/1Ez4jZUuuuCNV7Kj0X+Bt4jD7B75h+Pcp0oJrNhVYkO1Fu/LO2oIG+PPty0+4oi11JG0r3K/XCW673abLo0nYaOEPMx0lpPEWWvuE2NV7cjzDnNrxs8fJaBiFx+2gYk18o2tJz5/nd9YaiC7bM6MxPHjnnDGLSmManSaJlc1iHud1lez6dbdFFY2m25rx+YN6FNdwgepjYzjd3j91mRD17Xuv274KPsbt/BH9jSYauNYu3c2oJTWwtRmm5u6MnPns6sIvdmskaljH+yeMdHa1sK7H4PbOyoLa7vn5bs/9+LicX+uzO4NSd6Bco34a3j+L6J9z8gT0+3Zfxa+3U9z8BYQrOQM=)
 ```vue
@@ -156,7 +177,7 @@ console.log(isDirty.value) // true
 Add new item:
 ```javascript
 const addedItem = add({name: 'Taras'})
-console.log(addedItem) // {instance: TrackedInstance<{name: 'Taras'}>, isRemoved: false, isNew: true, meta: {}}}
+console.log(addedItem) // {instance: TrackedInstance<{name: 'Taras'}>, isRemoved: false, isNew: true, meta: undefined}
 ```
 Add new item in specific position:
 ```javascript
@@ -259,27 +280,61 @@ console.log(items.value[0].meta.isValidName.value) // false
 ```
 
 # Documentation
-## TrackedInstance
-- **data** - tracked data
-- **changedData** - includes only modified fields from data, considers nested objects and arrays
-- **isDirty** - whether instance has some changes
-- **loadData** - rewrite data and clear dirty state
-- **reset** - rollback changes at the last point when the instance was not isDirty
-
-## Collection
-- **items** - array of `CollectionItem`
-- **isDirty** - whether collection includes some changes (add/remove/change)
-- **add** - add new item
-- **remove** - soft remove item by index. Soft removed items should be deleted permanently after load data. Can be reverted by reset. If passed second param isHardRemove can be deleted permanently.
-- **loadData** - accepts array of data for each item. Rewrite each instance data and clear dirty state
-- **reset** - rollback changes at the last point when the instance was not isDirty
+## useTrackedInstance(initialData?, options?)
 
 ```typescript
-interface CollectionItem {
-  instance: TrackedInstance
-  isRemoved: Ref<boolean>
-  isNew: Ref<boolean> //whether is new instance. Field can be changed manually or changed in loadData in second argument
-  meta: Record<string, any>
-  remove: (isHardRemove?: boolean) => void
+useTrackedInstance<Data>(initialData?: Data, options?: TrackedInstanceOptions): TrackedInstance<Data>
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `equals` | `(a: unknown, b: unknown) => boolean` | Custom equality function for primitive leaf values. Replaces default `===`. |
+
+### TrackedInstance
+
+- **data** — reactive reference to the current data. Mutate it directly to track changes.
+- **changedData** — only the modified fields, deeply nested. `undefined` when nothing has changed.
+- **isDirty** — `true` when any field differs from the original.
+- **loadData(newData)** — replace data and clear dirty state (new baseline).
+- **reset()** — revert all changes back to the last `loadData()` baseline.
+
+## useCollection(createItemMeta?, options?)
+
+```typescript
+useCollection<Item, Meta>(
+  createItemMeta?: (instance: TrackedInstance<Item>) => Meta,
+  options?: TrackedInstanceOptions,
+): Collection<Item, Meta>
+```
+
+The `options` object (including `equals`) is passed to every `TrackedInstance` created inside the collection — both from `loadData()` and `add()`.
+
+```javascript
+const { items, isDirty } = useCollection(
+  () => undefined,
+  { equals: (a, b) => (a ?? '') === (b ?? '') }
+)
+```
+
+### Collection
+
+- **items** — reactive array of `CollectionItem`.
+- **isDirty** — `true` if any item is dirty, new, or soft-removed.
+- **add(item, index?)** — add a new item (marked `isNew`). Appended to end by default.
+- **remove(index, isHardRemove?)** — soft-remove by default (`isRemoved = true`). Pass `true` to hard-delete from array.
+- **loadData(items)** — replace all items and clear dirty state.
+- **reset()** — remove new items, restore soft-removed items, and reset all instance data.
+
+### CollectionItem
+
+```typescript
+interface CollectionItem<Item, Meta = undefined> {
+  instance: TrackedInstance<Item>  // the tracked instance for this item
+  isRemoved: Ref<boolean>          // true after soft remove
+  isNew: Ref<boolean>              // true for items added via add(), false for items loaded via loadData()
+  meta: Meta                       // custom metadata from createItemMeta(), undefined by default
+  remove: (isHardRemove?: boolean) => void  // shortcut: removes self from collection
 }
 ```

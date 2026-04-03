@@ -1,6 +1,8 @@
 import {useCollection} from '../src'
 import {beforeEach, describe, expect, it} from 'vitest'
 
+const nullEqualsEmpty = (a: unknown, b: unknown) => (a ?? '') === (b ?? '')
+
 interface Person {
   name: string
 }
@@ -127,6 +129,31 @@ describe('Collection', () => {
       collection.remove(0)
       collection.loadData([{name: 'admin'}, {name: 'user'}])
       expect(collection.items.value.some((item) => item.isRemoved.value)).equal(false)
+    })
+  })
+
+  describe('equals option', () => {
+    it('should treat null and empty string as equal in collection items', () => {
+      const collection = useCollection<{ comment: string | null }>({equals: nullEqualsEmpty})
+      collection.loadData([{comment: null}])
+      collection.items.value[0].instance.data.value.comment = ''
+      expect(collection.items.value[0].instance.isDirty.value).equal(false)
+      expect(collection.isDirty.value).equal(false)
+    })
+
+    it('should still detect real changes in collection items with equals option', () => {
+      const collection = useCollection<{ comment: string | null }>({equals: nullEqualsEmpty})
+      collection.loadData([{comment: null}])
+      collection.items.value[0].instance.data.value.comment = 'hello'
+      expect(collection.items.value[0].instance.isDirty.value).equal(true)
+      expect(collection.isDirty.value).equal(true)
+    })
+
+    it('should apply equals to items added via add()', () => {
+      const collection = useCollection<{ comment: string | null }>({equals: nullEqualsEmpty})
+      const item = collection.add({comment: null})
+      item.instance.data.value.comment = ''
+      expect(item.instance.isDirty.value).equal(false)
     })
   })
 })

@@ -347,7 +347,60 @@ describe('useTrackedInstance', async () => {
     const instance = useTrackedInstance(['one'])
     instance.data.value.push('two')
     instance.data.value.splice(1, 1)
-    
+
+    expect(instance.isDirty.value).eq(false)
+  })
+})
+
+describe('useTrackedInstance with equals option', () => {
+  const nullEqualsEmpty = (a: unknown, b: unknown) => (a ?? '') === (b ?? '')
+
+  it('should treat null and empty string as equal (no dirty)', () => {
+    const instance = useTrackedInstance({ name: null as string | null }, { equals: nullEqualsEmpty })
+    instance.data.value.name = ''
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.changedData.value).undefined
+  })
+
+  it('should treat empty string and null as equal (no dirty)', () => {
+    const instance = useTrackedInstance({ name: '' as string | null }, { equals: nullEqualsEmpty })
+    instance.data.value.name = null
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.changedData.value).undefined
+  })
+
+  it('should still detect real changes with equals option', () => {
+    const instance = useTrackedInstance({ name: null as string | null }, { equals: nullEqualsEmpty })
+    instance.data.value.name = 'John'
+    expect(instance.isDirty.value).eq(true)
+    expect(instance.changedData.value).deep.eq({ name: 'John' })
+  })
+
+  it('should revert to clean when value returns to null-equivalent original', () => {
+    const instance = useTrackedInstance({ name: null as string | null }, { equals: nullEqualsEmpty })
+    instance.data.value.name = 'John'
+    expect(instance.isDirty.value).eq(true)
+    instance.data.value.name = ''
+    expect(instance.isDirty.value).eq(false)
+  })
+
+  it('should work with equals on nested fields', () => {
+    const instance = useTrackedInstance(
+      { info: { phone: null as string | null } },
+      { equals: nullEqualsEmpty },
+    )
+    instance.data.value.info.phone = ''
+    expect(instance.isDirty.value).eq(false)
+    instance.data.value.info.phone = '123'
+    expect(instance.isDirty.value).eq(true)
+    expect(instance.changedData.value).deep.eq({ info: { phone: '123' } })
+  })
+
+  it('should reset correctly when equals option is used', () => {
+    const instance = useTrackedInstance({ name: 'John' as string | null }, { equals: nullEqualsEmpty })
+    instance.data.value.name = 'Jane'
+    instance.reset()
+    expect(instance.data.value.name).eq('John')
     expect(instance.isDirty.value).eq(false)
   })
 })
