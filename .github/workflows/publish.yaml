@@ -31,5 +31,14 @@ jobs:
       - name: Build package
         run: yarn build
 
+      - name: Debug OIDC token exchange
+        run: |
+          OIDC_TOKEN=$(curl -sS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm" \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" | jq -r .value)
+          echo "OIDC token obtained: ${#OIDC_TOKEN} chars"
+          curl -sS -X POST https://registry.npmjs.org/-/npm/v1/oidc/token \
+            -H "Content-Type: application/json" \
+            -d "{\"token\": \"$OIDC_TOKEN\"}"
+
       - name: Publish to npm
         run: npm publish --provenance --access public
