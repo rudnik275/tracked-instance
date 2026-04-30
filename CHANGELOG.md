@@ -2,13 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.3] - 2026-04-30
 
 ### Changed
 
-- Bumped dev/runtime dependencies to latest: `typescript` 5 → 6, `vitest` + `@vitest/ui` 3 → 4, `vue` 3.5.13 → 3.5.33, `lodash-es` 4.17.21 → 4.18.1.
+- Removed `lodash-es` runtime dependency. Replaced `get`/`set`/`has`/`unset` with a small internal `path-ops` module and `cloneDeepWith` with a purpose-built `cloneDeep` in `utils.ts`. Consumers no longer pull lodash transitively.
+- Inlined `iterateObject` directly into `ledger.ts` as private `walkLedgerForDiff` / `walkLedgerForReverse` generators specialized to the ledger's storage shape.
+- Folded `createNestedRef` (generic `customRef` factory in `utils.ts`) and the path-aware `set` / `deleteProperty` handler from `useTrackedInstance` into a single private `tracked-proxy` module. `useTrackedInstance` now reads as wiring (ledger creation, `{root}` wrap, `data` / `isDirty` / `changedData`, `loadData` / `reset`) with no Proxy mechanics.
+- `NestedProxyPathItem` is no longer exported from `utils.ts`.
+- Bumped dev/runtime dependencies to latest: `typescript` 5 → 6, `vitest` + `@vitest/ui` 3 → 4, `vue` 3.5.13 → 3.5.33.
 - Declared `esbuild` as an explicit `devDependency` (was previously resolved transitively via Vitest 3 → Vite; Vitest 4 no longer pulls it in).
 - Added explicit `rootDir: "./src"` to `tsconfig.json` (required by TypeScript 6 when emitting declarations).
+- Build now passes `--minify` to esbuild.
 
 Public API unchanged.
 

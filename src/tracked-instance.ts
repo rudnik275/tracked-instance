@@ -1,6 +1,7 @@
 import {computed, Ref, shallowRef, triggerRef} from 'vue'
 import {OriginalDataLedger} from './ledger'
-import {cloneDeep, createNestedRef, DeepPartial, NestedProxyPathItem} from './utils'
+import {createTrackedProxy} from './tracked-proxy'
+import {cloneDeep, DeepPartial} from './utils'
 
 export interface TrackedInstance<Data> {
   /** Reactive reference to the current (possibly modified) data. */
@@ -43,50 +44,15 @@ export function useTrackedInstance<Data>(
 ): TrackedInstance<Data> {
   type InternalData = { root: Data }
 
-  // Plain-JS ledger holds the sparse record of pre-change values.
-  // shallowRef + triggerRef bridges its mutations to Vue's reactivity system.
   const ledger = new OriginalDataLedger(options)
   const ledgerRef = shallowRef(ledger)
   const bumpLedger = () => triggerRef(ledgerRef)
 
-  // _data: the live, reactive copy of the user's data, wrapped in { root } to support
-  // primitive root values (e.g. useTrackedInstance(42)).
-  const _data = createNestedRef<InternalData>({root: cloneDeep(initialData)} as InternalData, (parentTree) => ({
-    set(target, property: string, value, receiver) {
-      const path = parentTree.concat({target, property, receiver})
-      const oldValue = target[property as keyof typeof target]
-
-      if (Array.isArray(target) && property === 'length') {
-        // When an array's `length` is set directly (e.g. via splice or assignment),
-        // emit synthetic per-index events on the live Proxy so the ledger's index
-        // entries stay consistent with the new length:
-        //   - Shrinking: delete indices that no longer exist
-        //   - Growing: mark new indices as `undefined` (absent in the original)
-        if (value !== oldValue) {
-          if (value < oldValue) {
-            for (let i = value; i < oldValue; i++) {
-              delete receiver[i]
-            }
-          } else {
-            for (let i = oldValue; i < value; i++) {
-              receiver[i] = undefined
-            }
-          }
-        }
-      } else {
-        ledger.record(path, value)
-        bumpLedger()
-      }
-
-      return Reflect.set(target, property, cloneDeep(value), receiver)
-    },
-    deleteProperty(target, property) {
-      const path = parentTree.concat({target, property} as NestedProxyPathItem)
-      ledger.record(path, undefined)
-      bumpLedger()
-      return Reflect.deleteProperty(target, property)
-    },
-  }))
+  const _data = createTrackedProxy<InternalData>(
+    {root: cloneDeep(initialData)} as InternalData,
+    ledger,
+    bumpLedger,
+  )
 
   const data = computed<Data>({
     get: () => _data.value.root,

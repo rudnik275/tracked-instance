@@ -1,17 +1,17 @@
-import {get, has, set, unset} from 'lodash-es'
-import {cloneDeep, DeepPartial, isObject, iterateObject, NestedProxyPathItem} from './utils'
+import {cloneDeep, DeepPartial, isObject} from './utils'
+import {getAtPath, hasAtPath, setAtPath, unsetAtPath} from './path-ops'
 
 /**
  * Sentinel used to represent arrays inside the ledger store.
  *
  * Plain arrays cannot be stored because:
- *   1. lodash get/set/has treat numeric paths as array indices and would reconstruct
- *      plain arrays automatically, conflicting with sparse index tracking.
+ *   1. setAtPath treats numeric path keys against array-shaped destinations as array
+ *      indices and would reconstruct plain arrays, conflicting with sparse index tracking.
  *   2. A Proxy `set` trap on arrays fires for both index assignments and the implicit
  *      `length` update — storing a plain array would conflate the two events.
  *
- * Enumerable keys are individual indices; `length` is non-enumerable so iterateObject
- * skips it while applyReverse can still read the original length to restore it first.
+ * Enumerable keys are individual indices; `length` is non-enumerable so the ledger
+ * walkers skip it while applyReverse can still read the original length to restore it first.
  */
 class ArrayInOriginalData {
   length: number
@@ -25,7 +25,12 @@ class ArrayInOriginalData {
   }
 }
 
-type LedgerPath = Omit<NestedProxyPathItem, 'receiver'>[]
+interface LedgerPathItem {
+  target: Record<string, any>
+  property: string
+}
+
+type LedgerPath = LedgerPathItem[]
 
 /**
  * Writes the *current* value at `path` into `store`, creating intermediate
@@ -65,12 +70,12 @@ const setOriginalDataValue = (store: Record<string, any>, path: LedgerPath) => {
  * behavior of the previous customRef-based deleteProperty propagation.
  */
 const unsetAndPrune = (store: Record<string, any>, path: string[]) => {
-  unset(store, path)
+  unsetAtPath(store, path)
   for (let i = path.length - 1; i >= 1; i--) {
     const parentPath = path.slice(0, i)
-    const parent = get(store, parentPath)
+    const parent = getAtPath(store, parentPath) as Record<string, any> | undefined
     if (parent !== undefined && Object.keys(parent).length === 0) {
-      unset(store, parentPath)
+      unsetAtPath(store, parentPath)
     } else {
       break
     }
@@ -91,7 +96,7 @@ const recordChange = (
   equals?: (a: unknown, b: unknown) => boolean,
 ) => {
   const pathAsString = path.map((i) => i.property)
-  const valueInOriginalData = get(store, pathAsString)
+  const valueInOriginalData = getAtPath(store, pathAsString) as any
 
   const markRemovedFieldsAsUndefined = (
     valueInOriginalData?: Record<string, any>,
@@ -126,7 +131,7 @@ const recordChange = (
   } else {
     const isEqual = equals ? equals(oldValue, value) : oldValue === value
     const isEqualToOriginal = equals ? equals(valueInOriginalData, value) : valueInOriginalData === value
-    if (!has(store, pathAsString)) {
+    if (!hasAtPath(store, pathAsString)) {
       if (!isEqual) {
         setOriginalDataValue(store, path)
       }
@@ -134,6 +139,54 @@ const recordChange = (
       unsetAndPrune(store, pathAsString)
     }
   }
+}
+
+/**
+ * Yields ledger paths whose live counterpart is a different shape from the recorded
+ * node, so `projectDiff` can emit each as a leaf in the diff. Descends only when both
+ * sides agree on container kind (plain object/object or AID/array); a type-changed
+ * field is yielded whole rather than walked into.
+ */
+function* walkLedgerForDiff(
+  store: Record<string, any>,
+  liveData: any,
+): Generator<string[]> {
+  const walk = function* (path: string[], node: Record<string, any>): Generator<string[]> {
+    for (const [key, value] of Object.entries(node)) {
+      const currentPath = path.concat(key)
+      const valueInData = getAtPath(liveData, currentPath)
+      const isBothObject = isObject(value) && isObject(valueInData)
+      const isBothArray = value instanceof ArrayInOriginalData && Array.isArray(valueInData)
+      if (isBothObject || isBothArray) {
+        yield* walk(currentPath, value)
+      } else {
+        yield currentPath
+      }
+    }
+  }
+  yield* walk([], store)
+}
+
+/**
+ * Yields every node in the ledger (parents before children) so `applyReverse` can
+ * restore array lengths via AID before scalar leaves are written. Descends into plain
+ * objects and ArrayInOriginalData; treats anything else as a terminal value to apply.
+ */
+function* walkLedgerForReverse(
+  store: Record<string, any>,
+): Generator<[string[], any]> {
+  const walk = function* (path: string[], node: Record<string, any>): Generator<[string[], any]> {
+    for (const [key, value] of Object.entries(node)) {
+      const currentPath = path.concat(key)
+      if (isObject(value) || value instanceof ArrayInOriginalData) {
+        yield [currentPath, value]
+        yield* walk(currentPath, value)
+      } else {
+        yield [currentPath, value]
+      }
+    }
+  }
+  yield* walk([], store)
 }
 
 export interface OriginalDataLedgerOptions {
@@ -178,17 +231,8 @@ export class OriginalDataLedger {
    */
   projectDiff<Data extends Record<string, any>>(liveData: Data): DeepPartial<Data> {
     const result = {} as DeepPartial<Data>
-    const iterator = iterateObject(this._store, {
-      goDeepCondition: (path, value) => {
-        const valueInData = get(liveData, path)
-        const isBothArray = value instanceof ArrayInOriginalData && Array.isArray(valueInData)
-        const isBothObject = isObject(value) && isObject(valueInData)
-        return isBothObject || isBothArray
-      },
-    })
-    for (const [path] of iterator) {
-      const valueInData = get(liveData, path)
-      set(result, path, valueInData)
+    for (const path of walkLedgerForDiff(this._store, liveData)) {
+      setAtPath(result as Record<string, any>, path, getAtPath(liveData, path))
     }
     return result
   }
@@ -200,14 +244,14 @@ export class OriginalDataLedger {
    */
   applyReverse<Data>(liveData: Data): Data {
     const updatedData = cloneDeep(liveData)
-    for (const [path, value] of iterateObject(this._store, {includeParent: true})) {
+    for (const [path, value] of walkLedgerForReverse(this._store)) {
       if (value instanceof ArrayInOriginalData) {
-        set(updatedData as object, path.concat('length'), value.length)
+        setAtPath(updatedData as Record<string, any>, path.concat('length'), value.length)
       } else if (!isObject(value)) {
         if (value === undefined) {
-          unset(updatedData as object, path)
+          unsetAtPath(updatedData as object, path)
         } else {
-          set(updatedData as object, path, value)
+          setAtPath(updatedData as Record<string, any>, path, value)
         }
       }
     }
