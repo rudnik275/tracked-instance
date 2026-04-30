@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.2] - 2026-04-30
+
+### Changed
+
+- Internal refactor: extracted original-data tracking into a dedicated `OriginalDataLedger` module with no Vue dependency. Public API unchanged.
+
+---
+
 ## [2.0.0] - 2026-04-03
 
 ### Breaking Changes

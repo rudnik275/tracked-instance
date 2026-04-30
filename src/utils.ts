@@ -36,8 +36,6 @@ export const isObject = (value: unknown) =>
   !(value instanceof Map) &&
   !(value instanceof Set)
 
-export const isEmpty = (value: object) => Object.keys(value).length === 0
-
 /**
  * Depth-first generator that walks an object tree, yielding [path, value] pairs.
  *

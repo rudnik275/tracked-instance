@@ -1,0 +1,3 @@
+# Collection does not expose `changedData`
+
+`TrackedInstance` exposes `changedData` because there is exactly one sensible shape for a single object's diff (a sparse `DeepPartial`). `Collection` does not, even though the API asymmetry is the first thing a reader notices, because a collection's "diff for the backend" has many valid shapes — id-only for removed, full payload vs. patch for modified, position-aware vs. position-free, soft- vs. hard-delete semantics — and any concrete shape we ship would impose a payload contract on consumers. The five-line boilerplate to walk `items.value` and read `isNew` / `isRemoved` / `instance.changedData` is cheaper than a wrong abstraction; users who want one can write a thin wrapper in their own code.
