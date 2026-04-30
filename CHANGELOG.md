@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Bumped dev/runtime dependencies to latest: `typescript` 5 → 6, `vitest` + `@vitest/ui` 3 → 4, `vue` 3.5.13 → 3.5.33, `lodash-es` 4.17.21 → 4.18.1.
+- Declared `esbuild` as an explicit `devDependency` (was previously resolved transitively via Vitest 3 → Vite; Vitest 4 no longer pulls it in).
+- Added explicit `rootDir: "./src"` to `tsconfig.json` (required by TypeScript 6 when emitting declarations).
+
+Public API unchanged.
+
+---
+
 ## [2.0.2] - 2026-04-30
 
 ### Changed
