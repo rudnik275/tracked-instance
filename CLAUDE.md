@@ -154,3 +154,17 @@ If **no** — do the full release:
 The tag push triggers GitHub Actions → tests → build → `npm publish`. No manual publish step needed.
 
 Version bumping follows semver: patch for fixes, minor for new features, major for breaking changes.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as markdown files in `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
