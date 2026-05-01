@@ -318,6 +318,37 @@ describe('useTrackedInstance', async () => {
     expect(instance.changedData.value.file).instanceOf(File)
     expect(instance.changedData.value.date).instanceOf(Date)
   })
+
+  it('stores Date as a fresh instance with the same timestamp', () => {
+    const source = new Date('2024-01-15T10:00:00Z')
+    const instance = useTrackedInstance<{ date?: Date }>({})
+    instance.data.value.date = source
+    // The value inside data is a fresh clone, not the original reference
+    expect(instance.data.value.date).not.toBe(source)
+    expect(instance.data.value.date).toBeInstanceOf(Date)
+    expect(instance.data.value.date!.getTime()).toBe(source.getTime())
+  })
+
+  it('keeps File as the same reference (Files are immutable)', () => {
+    const source = new File(['hi'], 'a.txt', {type: 'text/plain'})
+    const instance = useTrackedInstance<{ file?: File }>({})
+    instance.data.value.file = source
+    expect(instance.data.value.file).toBe(source)
+  })
+
+  it('keeps Map as the same reference (treated as atomic)', () => {
+    const source = new Map([['k', 1]])
+    const instance = useTrackedInstance<{ map?: Map<string, number> }>({})
+    instance.data.value.map = source
+    expect(instance.data.value.map).toBe(source)
+  })
+
+  it('keeps Set as the same reference (treated as atomic)', () => {
+    const source = new Set([1, 2])
+    const instance = useTrackedInstance<{ set?: Set<number> }>({})
+    instance.data.value.set = source
+    expect(instance.data.value.set).toBe(source)
+  })
   
   it('should copy input data to prevent external mutations', () => {
     const externalObject = {name: 'John'}

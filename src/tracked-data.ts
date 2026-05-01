@@ -1,5 +1,56 @@
+import {computed, ComputedRef, customRef, Ref, shallowRef, triggerRef} from 'vue'
 import {cloneDeep, DeepPartial, isObject} from './utils'
-import {getAtPath, hasAtPath, setAtPath, unsetAtPath} from './path-ops'
+
+// ---------- path helpers (private, inlined from former path-ops) ----------
+
+const hasOwn = (obj: object, key: string) => Object.prototype.hasOwnProperty.call(obj, key)
+const isIntegerKey = (key: string) => /^(?:0|[1-9]\d*)$/.test(key)
+
+function getAtPath(obj: any, path: string[]): unknown {
+  let cur: any = obj
+  for (const key of path) {
+    if (cur == null) return undefined
+    cur = cur[key]
+  }
+  return cur
+}
+
+function hasAtPath(obj: any, path: string[]): boolean {
+  if (path.length === 0) return obj !== undefined
+  let cur: any = obj
+  for (let i = 0; i < path.length - 1; i++) {
+    if (cur == null || typeof cur !== 'object' || !hasOwn(cur, path[i])) return false
+    cur = cur[path[i]]
+  }
+  return cur != null && typeof cur === 'object' && hasOwn(cur, path[path.length - 1]!)
+}
+
+function setAtPath(obj: Record<string, any>, path: string[], value: unknown): void {
+  if (path.length === 0) return
+  let target: any = obj
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i]
+    const existing = target[key]
+    if (existing == null || typeof existing !== 'object') {
+      target[key] = isIntegerKey(path[i + 1]!) ? [] : {}
+    }
+    target = target[key]
+  }
+  target[path[path.length - 1]!] = value
+}
+
+function unsetAtPath(obj: any, path: string[]): boolean {
+  if (path.length === 0) return false
+  let cur: any = obj
+  for (let i = 0; i < path.length - 1; i++) {
+    if (cur == null || typeof cur !== 'object') return true
+    cur = cur[path[i]]
+  }
+  if (cur == null || typeof cur !== 'object') return true
+  return delete cur[path[path.length - 1]!]
+}
+
+// ---------- ledger sentinel ----------
 
 /**
  * Sentinel used to represent arrays inside the ledger store.
@@ -24,6 +75,8 @@ class ArrayInOriginalData {
     })
   }
 }
+
+// ---------- ledger record/walk helpers ----------
 
 interface LedgerPathItem {
   target: Record<string, any>
@@ -143,8 +196,8 @@ const recordChange = (
 
 /**
  * Yields ledger paths whose live counterpart is a different shape from the recorded
- * node, so `projectDiff` can emit each as a leaf in the diff. Descends only when both
- * sides agree on container kind (plain object/object or AID/array); a type-changed
+ * node, so the diff projection can emit each as a leaf in the diff. Descends only when
+ * both sides agree on container kind (plain object/object or AID/array); a type-changed
  * field is yielded whole rather than walked into.
  */
 function* walkLedgerForDiff(
@@ -168,8 +221,8 @@ function* walkLedgerForDiff(
 }
 
 /**
- * Yields every node in the ledger (parents before children) so `applyReverse` can
- * restore array lengths via AID before scalar leaves are written. Descends into plain
+ * Yields every node in the ledger (parents before children) so the reverse-apply pass
+ * can restore array lengths via AID before scalar leaves are written. Descends into plain
  * objects and ArrayInOriginalData; treats anything else as a terminal value to apply.
  */
 function* walkLedgerForReverse(
@@ -189,21 +242,20 @@ function* walkLedgerForReverse(
   yield* walk([], store)
 }
 
-export interface OriginalDataLedgerOptions {
-  /**
-   * Custom equality function for primitive comparisons (replaces ===).
-   * Called only at leaf values; callers typically forward TrackedInstanceOptions.equals.
-   */
+// ---------- ledger ----------
+
+interface OriginalDataLedgerOptions {
   equals?: (a: unknown, b: unknown) => boolean
 }
 
 /**
- * Sparse record of original (pre-change) values keyed by property path.
+ * Sparse record of pre-change values keyed by Path.
  *
- * Plain class — no Vue dependency. The owning composable wraps the ledger in a
- * shallowRef and calls triggerRef after each mutation to drive reactivity.
+ * Internal to this module: a Tracked Instance owns exactly one Ledger, and the
+ * Ledger drives Changed Data, isDirty, and reset(). The reactivity trigger sits
+ * one level up in createTrackedData and fires once per recorded mutation.
  */
-export class OriginalDataLedger {
+class OriginalDataLedger {
   private _store: Record<string, any> = {}
   private readonly _equals?: (a: unknown, b: unknown) => boolean
 
@@ -211,24 +263,14 @@ export class OriginalDataLedger {
     this._equals = options.equals
   }
 
-  /**
-   * Records a write at the given path. Snapshots the original value on the first
-   * change at that path, and removes the entry when the value reverts to its original.
-   */
   record(path: LedgerPath, value: unknown): void {
     recordChange(this._store, path, value, this._equals)
   }
 
-  /** True when no path is currently dirty. */
   isEmpty(): boolean {
     return Object.keys(this._store).length === 0
   }
 
-  /**
-   * Builds a sparse DeepPartial diff by reading current values from `liveData`
-   * for every path that has an entry in the ledger. Type-changed fields (object →
-   * scalar or vice versa) are emitted whole rather than descended into.
-   */
   projectDiff<Data extends Record<string, any>>(liveData: Data): DeepPartial<Data> {
     const result = {} as DeepPartial<Data>
     for (const path of walkLedgerForDiff(this._store, liveData)) {
@@ -237,11 +279,6 @@ export class OriginalDataLedger {
     return result
   }
 
-  /**
-   * Returns a clone of `liveData` with every recorded path restored to its original
-   * value. Array lengths are restored before individual indices so that excess
-   * elements are dropped before scalar restoration runs.
-   */
   applyReverse<Data>(liveData: Data): Data {
     const updatedData = cloneDeep(liveData)
     for (const [path, value] of walkLedgerForReverse(this._store)) {
@@ -258,8 +295,158 @@ export class OriginalDataLedger {
     return updatedData
   }
 
-  /** Drops all recorded changes. The next read will treat current liveData as clean. */
   clear(): void {
     this._store = {}
+  }
+}
+
+// ---------- tracked proxy ----------
+
+interface NestedProxyPathItem {
+  target: Record<string, any>
+  property: string
+  receiver?: Record<string, any>
+}
+
+/**
+ * Wraps `initialData` in a deeply-Proxy'd Vue ref. Every mutation at any depth is
+ * recorded into `ledger`, then `onMutate` is called so the owner can drive Vue
+ * reactivity (a triggerRef on the shallowRef holding the ledger).
+ *
+ * Handles three responsibilities the public composable shouldn't care about:
+ *   - nested Proxy creation + path bookkeeping
+ *   - Array.length synthesis: writes to an array's `length` don't fire individual
+ *     index events through Proxy traps, so synthetic per-index `delete`/`set` events
+ *     are emitted on the live receiver to keep ledger index entries consistent
+ *   - cloneDeep on every write so stored values are detached from caller refs
+ */
+const createTrackedProxy = <Data extends Record<string, any>>(
+  initialData: Data,
+  ledger: OriginalDataLedger,
+  onMutate: () => void,
+): Ref<Data> =>
+  customRef<Data>((track, trigger) => {
+    const createProxy = <Inner extends Record<string, any>>(
+      source: Inner,
+      parentTree: NestedProxyPathItem[] = [],
+    ): Inner =>
+      new Proxy(source, {
+        get(target, property: string, receiver) {
+          track()
+          const result = Reflect.get(target, property, receiver)
+          if (isObject(result) || Array.isArray(result)) {
+            return createProxy(result, parentTree.concat({target, property, receiver}))
+          }
+          return result
+        },
+        set(target, property: string, value, receiver) {
+          const path = parentTree.concat({target, property, receiver})
+          const oldValue = target[property as keyof typeof target]
+
+          if (Array.isArray(target) && property === 'length') {
+            if (value !== oldValue) {
+              if (value < oldValue) {
+                for (let i = value; i < oldValue; i++) {
+                  delete receiver[i]
+                }
+              } else {
+                for (let i = oldValue; i < value; i++) {
+                  receiver[i] = undefined
+                }
+              }
+            }
+          } else {
+            ledger.record(path, value)
+            onMutate()
+          }
+
+          const result = Reflect.set(target, property, cloneDeep(value), receiver)
+          trigger()
+          return result
+        },
+        deleteProperty(target, property: string) {
+          const path = parentTree.concat({target, property})
+          ledger.record(path, undefined)
+          onMutate()
+          const result = Reflect.deleteProperty(target, property)
+          trigger()
+          return result
+        },
+      })
+
+    let value = createProxy(initialData)
+
+    return {
+      get() {
+        track()
+        return value
+      },
+      set(newValue: Data) {
+        value = createProxy(newValue)
+        trigger()
+      },
+    }
+  })
+
+// ---------- public factory ----------
+
+export interface CreateTrackedDataOptions {
+  /**
+   * Custom equality function for comparing primitive values.
+   * When provided, replaces the default strict equality (===) check at leaf comparisons.
+   */
+  equals?: (a: unknown, b: unknown) => boolean
+}
+
+export interface TrackedData<Data extends Record<string, any>> {
+  dataRef: Ref<Data>
+  isDirty: ComputedRef<boolean>
+  changedData: ComputedRef<DeepPartial<Data>>
+  loadData: (newValue: Data) => void
+  reset: () => void
+}
+
+/**
+ * Builds the full tracking machinery for a single object shape: the deeply-proxied
+ * data ref, the Ledger, and the reactive isDirty / changedData projections.
+ *
+ * Owns the Vue reactivity wiring (shallowRef + triggerRef) for the Ledger so that
+ * every recorded mutation invalidates dependent computeds exactly once. Callers
+ * never see the Ledger or the Proxy directly.
+ */
+export const createTrackedData = <Data extends Record<string, any>>(
+  initialValue: Data,
+  options: CreateTrackedDataOptions = {},
+): TrackedData<Data> => {
+  const ledger = new OriginalDataLedger(options)
+  const ledgerRef = shallowRef(ledger)
+  const bumpLedger = () => triggerRef(ledgerRef)
+
+  const dataRef = createTrackedProxy<Data>(cloneDeep(initialValue), ledger, bumpLedger)
+
+  const isDirty = computed<boolean>(() => !ledgerRef.value.isEmpty())
+
+  const changedData = computed<DeepPartial<Data>>(() =>
+    ledgerRef.value.projectDiff(dataRef.value),
+  )
+
+  const loadData = (newValue: Data) => {
+    dataRef.value = cloneDeep(newValue)
+    ledger.clear()
+    bumpLedger()
+  }
+
+  const reset = () => {
+    dataRef.value = ledger.applyReverse(dataRef.value)
+    ledger.clear()
+    bumpLedger()
+  }
+
+  return {
+    dataRef,
+    isDirty,
+    changedData,
+    loadData,
+    reset,
   }
 }

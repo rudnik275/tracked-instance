@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.4] - 2026-05-01
+
+### Changed
+
+- Internal refactor: collapsed `ledger.ts` and `tracked-proxy.ts` into a single private `tracked-data.ts` module that owns Vue reactivity (`shallowRef` + `triggerRef`) alongside the proxy that triggers it. The bump-after-record obligation that previously lived in `useTrackedInstance` is gone — `tracked-data.ts` exposes a single `createTrackedData` factory and `useTrackedInstance` shrinks to the `{ root: Data }` wrapper plus the public surface. See `docs/adr/0002-merged-tracked-data-module.md`.
+- Inlined `path-ops` helpers (`getAtPath` / `hasAtPath` / `setAtPath` / `unsetAtPath`) into `tracked-data.ts` as private functions; `src/path-ops.ts` deleted.
+- Removed `tests/clone-deep.spec.ts` and `tests/path-ops.spec.ts` — both tested past the public composable interface. Behaviors not already covered by `tests/tracked-instance.spec.ts` (Map/Set passthrough, Date timestamp identity, File reference identity) were added as composable-level tests.
+- Added `CONTEXT.md` at the repo root with the project's domain glossary.
+
+Public API unchanged.
+
+---
+
 ## [2.0.3] - 2026-04-30
 
 ### Changed
