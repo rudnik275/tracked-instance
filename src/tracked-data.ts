@@ -76,7 +76,7 @@ class ArrayInOriginalData {
   }
 }
 
-// ---------- ledger record/walk helpers ----------
+// ---------- ledger path types ----------
 
 interface LedgerPathItem {
   target: Record<string, any>
@@ -84,108 +84,6 @@ interface LedgerPathItem {
 }
 
 type LedgerPath = LedgerPathItem[]
-
-/**
- * Writes the *current* value at `path` into `store`, creating intermediate
- * container nodes (plain objects or ArrayInOriginalData) as needed.
- *
- * Bails out early when an intermediate node in the store is already a primitive —
- * this happens when a field was previously changed from an object to a scalar, meaning
- * the whole subtree is already captured at a higher level and should not be overwritten.
- */
-const setOriginalDataValue = (store: Record<string, any>, path: LedgerPath) => {
-  let target = store
-  for (const {target: oldValueParent, property} of path.slice(0, -1)) {
-    if (property in target) {
-      if (isObject(target[property]) || target[property] instanceof ArrayInOriginalData) {
-        target = target[property]
-      } else {
-        return
-      }
-    } else {
-      if (Array.isArray(oldValueParent[property])) {
-        target = target[property] = new ArrayInOriginalData(oldValueParent[property].length)
-      } else if (isObject(oldValueParent[property])) {
-        target = target[property] = {}
-      }
-    }
-  }
-
-  const lastItem = path.at(-1)!
-  target[lastItem.property] = lastItem.target[lastItem.property]
-}
-
-/**
- * Removes a leaf and prunes any ancestor containers that become empty as a result.
- *
- * Object.keys ignores ArrayInOriginalData's non-enumerable `length`, so an AID with
- * no surviving indices is treated as empty and unset from its parent — matching the
- * behavior of the previous customRef-based deleteProperty propagation.
- */
-const unsetAndPrune = (store: Record<string, any>, path: string[]) => {
-  unsetAtPath(store, path)
-  for (let i = path.length - 1; i >= 1; i--) {
-    const parentPath = path.slice(0, i)
-    const parent = getAtPath(store, parentPath) as Record<string, any> | undefined
-    if (parent !== undefined && Object.keys(parent).length === 0) {
-      unsetAtPath(store, parentPath)
-    } else {
-      break
-    }
-  }
-}
-
-const recordChange = (
-  store: Record<string, any>,
-  path: LedgerPath,
-  value: any,
-  equals?: (a: unknown, b: unknown) => boolean,
-) => {
-  const pathAsString = path.map((i) => i.property)
-  const valueInOriginalData = getAtPath(store, pathAsString) as any
-
-  const markRemovedFieldsAsUndefined = (
-    valueInOriginalData?: Record<string, any>,
-    oldValue?: Record<string, any>,
-  ) => {
-    const keysSet = new Set<string>()
-    if (valueInOriginalData) for (const key of Object.keys(valueInOriginalData)) keysSet.add(key)
-    if (oldValue) for (const key of Object.keys(oldValue)) keysSet.add(key)
-    const keys = Array.from(keysSet).filter((key) => !Object.keys(value).includes(key))
-    for (const key of keys) {
-      recordChange(
-        store,
-        path.concat({target: oldValue || value, property: key}),
-        undefined,
-        equals,
-      )
-    }
-  }
-
-  const lastPathItem = path.at(-1)!
-  const oldValue = lastPathItem.target[lastPathItem.property]
-  if (isObject(value) && (isObject(valueInOriginalData) || isObject(oldValue))) {
-    markRemovedFieldsAsUndefined(valueInOriginalData, oldValue)
-    for (const key of Object.keys(value)) {
-      recordChange(store, path.concat({target: oldValue || value, property: key}), value[key], equals)
-    }
-  } else if (Array.isArray(value) && (valueInOriginalData instanceof ArrayInOriginalData || Array.isArray(oldValue))) {
-    markRemovedFieldsAsUndefined(valueInOriginalData, oldValue)
-    for (const key of value.keys()) {
-      recordChange(store, path.concat({target: oldValue || value, property: key.toString()}), value[key], equals)
-    }
-  } else {
-    const isEqual = equals ? equals(oldValue, value) : oldValue === value
-    const isEqualToOriginal = equals ? equals(valueInOriginalData, value) : valueInOriginalData === value
-    if (!hasAtPath(store, pathAsString)) {
-      if (!isEqual) {
-        setOriginalDataValue(store, path)
-      }
-    } else if (isEqualToOriginal) {
-      unsetAndPrune(store, pathAsString)
-    }
-  }
-}
 
 /**
  * Yields ledger paths whose live counterpart is a different shape from the recorded
@@ -256,8 +154,147 @@ class OriginalDataLedger {
     this._equals = options.equals
   }
 
+  /**
+   * Writes the Baseline value at `path` into the store, creating intermediate
+   * container nodes (plain objects or ArrayInOriginalData) as needed.
+   *
+   * Bails out early when an intermediate node in the store is already a primitive —
+   * this happens when a field was previously changed from an object to a scalar, meaning
+   * the whole subtree is already captured at a higher level and should not be overwritten.
+   */
+  private _setStoreValue(path: LedgerPath): void {
+    let target = this._store
+    for (const {target: oldValueParent, property} of path.slice(0, -1)) {
+      if (property in target) {
+        if (isObject(target[property]) || target[property] instanceof ArrayInOriginalData) {
+          target = target[property]
+        } else {
+          return
+        }
+      } else {
+        if (Array.isArray(oldValueParent[property])) {
+          target = target[property] = new ArrayInOriginalData(oldValueParent[property].length)
+        } else if (isObject(oldValueParent[property])) {
+          target = target[property] = {}
+        }
+      }
+    }
+
+    const lastItem = path.at(-1)!
+    target[lastItem.property] = lastItem.target[lastItem.property]
+  }
+
+  /**
+   * Removes a leaf and prunes any ancestor containers that become empty as a result.
+   *
+   * Object.keys ignores ArrayInOriginalData's non-enumerable `length`, so an AID with
+   * no surviving indices is treated as empty and unset from its parent — matching the
+   * behavior of the previous customRef-based deleteProperty propagation.
+   */
+  private _unsetAndPrune(path: string[]): void {
+    unsetAtPath(this._store, path)
+    for (let i = path.length - 1; i >= 1; i--) {
+      const parentPath = path.slice(0, i)
+      const parent = getAtPath(this._store, parentPath) as Record<string, any> | undefined
+      if (parent !== undefined && Object.keys(parent).length === 0) {
+        unsetAtPath(this._store, parentPath)
+      } else {
+        break
+      }
+    }
+  }
+
+  /**
+   * Records `undefined` for any keys present in `valueInStore` or `oldValue` but
+   * absent from the incoming `value`, so that keys removed by an object/array
+   * replacement land in the Ledger as deletions.
+   */
+  private _markMissingKeysAsRemoved(
+    path: LedgerPath,
+    value: Record<string, any>,
+    valueInStore: Record<string, any> | undefined,
+    oldValue: Record<string, any> | undefined,
+  ): void {
+    const keysSet = new Set<string>()
+    if (valueInStore) for (const key of Object.keys(valueInStore)) keysSet.add(key)
+    if (oldValue) for (const key of Object.keys(oldValue)) keysSet.add(key)
+    const keys = Array.from(keysSet).filter((key) => !Object.keys(value).includes(key))
+    for (const key of keys) {
+      this._recordLeaf(
+        path.concat({target: oldValue || value, property: key}),
+        undefined,
+      )
+    }
+  }
+
+  /**
+   * Handles a Proxy-trap event for an object value: marks removed keys as deleted,
+   * then recurses into each present key.
+   */
+  private _recordObjectMutation(path: LedgerPath, value: Record<string, any>): void {
+    const pathAsString = path.map((i) => i.property)
+    const valueInStore = getAtPath(this._store, pathAsString) as Record<string, any> | undefined
+    const lastPathItem = path.at(-1)!
+    const oldValue = lastPathItem.target[lastPathItem.property]
+    this._markMissingKeysAsRemoved(path, value, valueInStore, oldValue)
+    for (const key of Object.keys(value)) {
+      this.record(path.concat({target: oldValue || value, property: key}), value[key])
+    }
+  }
+
+  /**
+   * Handles a Proxy-trap event for an array value: marks removed indices as deleted,
+   * then recurses into each present index.
+   */
+  private _recordArrayMutation(path: LedgerPath, value: any[]): void {
+    const pathAsString = path.map((i) => i.property)
+    const valueInStore = getAtPath(this._store, pathAsString) as Record<string, any> | undefined
+    const lastPathItem = path.at(-1)!
+    const oldValue = lastPathItem.target[lastPathItem.property]
+    this._markMissingKeysAsRemoved(path, value as unknown as Record<string, any>, valueInStore, oldValue)
+    for (const key of value.keys()) {
+      this.record(path.concat({target: oldValue || value, property: key.toString()}), value[key])
+    }
+  }
+
+  /**
+   * Handles a Proxy-trap event for a primitive (leaf) value: either records the
+   * Baseline value if the field is first touched, or clears it from the Ledger
+   * if the current value matches the Baseline (field reverted to clean).
+   */
+  private _recordLeaf(path: LedgerPath, value: unknown): void {
+    const pathAsString = path.map((i) => i.property)
+    const valueInStore = getAtPath(this._store, pathAsString)
+    const lastPathItem = path.at(-1)!
+    const oldValue = lastPathItem.target[lastPathItem.property]
+    const isEqual = this._equals ? this._equals(oldValue, value) : oldValue === value
+    const isEqualToOriginal = this._equals ? this._equals(valueInStore, value) : valueInStore === value
+    if (!hasAtPath(this._store, pathAsString)) {
+      if (!isEqual) {
+        this._setStoreValue(path)
+      }
+    } else if (isEqualToOriginal) {
+      this._unsetAndPrune(pathAsString)
+    }
+  }
+
+  /**
+   * Single entry point called by the Proxy for every mutation. Dispatches to the
+   * appropriate case (_recordObjectMutation, _recordArrayMutation, _recordLeaf)
+   * based on the shape of the incoming value and what is already in the Ledger.
+   */
   record(path: LedgerPath, value: unknown): void {
-    recordChange(this._store, path, value, this._equals)
+    const pathAsString = path.map((i) => i.property)
+    const valueInStore = getAtPath(this._store, pathAsString) as any
+    const lastPathItem = path.at(-1)!
+    const oldValue = lastPathItem.target[lastPathItem.property]
+    if (isObject(value) && (isObject(valueInStore) || isObject(oldValue))) {
+      this._recordObjectMutation(path, value as Record<string, any>)
+    } else if (Array.isArray(value) && (valueInStore instanceof ArrayInOriginalData || Array.isArray(oldValue))) {
+      this._recordArrayMutation(path, value as any[])
+    } else {
+      this._recordLeaf(path, value)
+    }
   }
 
   isEmpty(): boolean {
