@@ -217,53 +217,50 @@ function unsetInLedger(root: LedgerNode, path: string[]): void {
   }
 }
 
+// ---------- unified ledger traversal ----------
+
 /**
- * Yields ledger paths whose live counterpart is a different shape from the recorded
- * node, so the diff projection can emit each as a leaf in the diff. Descends only when
- * both sides agree on container kind (object node + plain object, array node + array);
- * a type-changed field is yielded whole rather than walked into.
+ * Visitor interface for `walkLedger`.
+ *
+ * The traversal calls `visitContainer` on every LedgerNode (parent before its
+ * children) and `visitLeaf` on every non-node entry. When `visitContainer`
+ * returns `false`, the traversal skips that node's children — this is the
+ * mechanism the diff side uses to stop descent at live-data shape divergence
+ * without the traversal itself knowing about live data. The reverse side always
+ * returns `true` (or omits the return) to descend unconditionally.
+ *
+ * Shape: visitor object — chosen over a rich-event generator because
+ * (1) the stop-descent flag maps cleanly onto a boolean return value from
+ *     `visitContainer`, keeping each consumer's logic self-contained, and
+ * (2) the implementation is a straightforward recursive function rather than
+ *     a generator that must thread yield* through conditional branches.
  */
-function* walkLedgerForDiff(
-  store: LedgerObjectNode,
-  liveData: any,
-): Generator<string[]> {
-  const walk = function* (path: string[], node: LedgerNode): Generator<string[]> {
-    for (const [key, value] of node.entries()) {
-      const currentPath = path.concat(key)
-      const valueInData = getAtPath(liveData, currentPath)
-      const isBothObject = isLedgerNode(value) && value.kind === 'object' && isObject(valueInData)
-      const isBothArray = isLedgerNode(value) && value.kind === 'array' && Array.isArray(valueInData)
-      if (isBothObject || isBothArray) {
-        yield* walk(currentPath, value as LedgerNode)
-      } else {
-        yield currentPath
-      }
-    }
-  }
-  yield* walk([], store)
+interface LedgerVisitor {
+  visitContainer(path: string[], node: LedgerNode): boolean
+  visitLeaf(path: string[], value: unknown): void
 }
 
 /**
- * Yields every node in the ledger (parents before children) so the reverse-apply pass
- * can restore array lengths via LedgerArrayNode before scalar leaves are written.
- * Descends into both LedgerObjectNode and LedgerArrayNode; treats anything else as
- * a terminal value to apply.
+ * Traverses the entire Ledger tree rooted at `store`, dispatching to the
+ * supplied visitor in parent-before-children order. Container nodes are
+ * visited before their children so that `applyReverse` can restore an array's
+ * `length` (recorded on the LedgerArrayNode) before writing scalar leaves.
  */
-function* walkLedgerForReverse(
-  store: LedgerObjectNode,
-): Generator<[string[], LedgerNode | unknown]> {
-  const walk = function* (path: string[], node: LedgerNode): Generator<[string[], LedgerNode | unknown]> {
+function walkLedger(store: LedgerObjectNode, visitor: LedgerVisitor): void {
+  const walk = (path: string[], node: LedgerNode): void => {
     for (const [key, value] of node.entries()) {
       const currentPath = path.concat(key)
       if (isLedgerNode(value)) {
-        yield [currentPath, value]
-        yield* walk(currentPath, value)
+        const shouldDescend = visitor.visitContainer(currentPath, value)
+        if (shouldDescend) {
+          walk(currentPath, value)
+        }
       } else {
-        yield [currentPath, value]
+        visitor.visitLeaf(currentPath, value)
       }
     }
   }
-  yield* walk([], store)
+  walk([], store)
 }
 
 // ---------- ledger ----------
@@ -440,25 +437,44 @@ class OriginalDataLedger {
 
   projectDiff<Data extends Record<string, any>>(liveData: Data): DeepPartial<Data> {
     const result = {} as DeepPartial<Data>
-    for (const path of walkLedgerForDiff(this._store, liveData)) {
-      setAtPath(result as Record<string, any>, path, getAtPath(liveData, path))
-    }
+    walkLedger(this._store, {
+      visitContainer(path, node): boolean {
+        // Stop descent when the live data at this path has a different shape from
+        // the recorded node (type-divergence). In that case yield the whole path
+        // as a leaf so the caller sees the full replacement rather than a partial diff.
+        const liveValue = getAtPath(liveData, path)
+        const isBothObject = node.kind === 'object' && isObject(liveValue)
+        const isBothArray = node.kind === 'array' && Array.isArray(liveValue)
+        if (isBothObject || isBothArray) return true
+        setAtPath(result as Record<string, any>, path, liveValue)
+        return false
+      },
+      visitLeaf(path, _value): void {
+        setAtPath(result as Record<string, any>, path, getAtPath(liveData, path))
+      },
+    })
     return result
   }
 
   applyReverse<Data>(liveData: Data): Data {
     const updatedData = cloneDeep(liveData)
-    for (const [path, value] of walkLedgerForReverse(this._store)) {
-      if (isLedgerNode(value) && value.kind === 'array') {
-        setAtPath(updatedData as Record<string, any>, path.concat('length'), value.length)
-      } else if (!isLedgerNode(value)) {
+    walkLedger(this._store, {
+      visitContainer(path, node): boolean {
+        // Restore array length (parent-before-children ordering ensures this runs
+        // before any scalar indices of this node are written below).
+        if (node.kind === 'array') {
+          setAtPath(updatedData as Record<string, any>, path.concat('length'), node.length)
+        }
+        return true
+      },
+      visitLeaf(path, value): void {
         if (value === undefined) {
           unsetAtPath(updatedData as object, path)
         } else {
           setAtPath(updatedData as Record<string, any>, path, value)
         }
-      }
-    }
+      },
+    })
     return updatedData
   }
 
