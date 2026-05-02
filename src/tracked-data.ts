@@ -302,12 +302,6 @@ class OriginalDataLedger {
 
 // ---------- tracked proxy ----------
 
-interface NestedProxyPathItem {
-  target: Record<string, any>
-  property: string
-  receiver?: Record<string, any>
-}
-
 /**
  * Wraps `initialData` in a deeply-Proxy'd Vue ref. Every mutation at any depth is
  * recorded into `ledger`, then `onMutate` is called so the owner can drive Vue
@@ -328,19 +322,19 @@ const createTrackedProxy = <Data extends Record<string, any>>(
   customRef<Data>((track, trigger) => {
     const createProxy = <Inner extends Record<string, any>>(
       source: Inner,
-      parentTree: NestedProxyPathItem[] = [],
+      parentTree: LedgerPath = [],
     ): Inner =>
       new Proxy(source, {
         get(target, property: string, receiver) {
           track()
           const result = Reflect.get(target, property, receiver)
           if (isObject(result) || Array.isArray(result)) {
-            return createProxy(result, parentTree.concat({target, property, receiver}))
+            return createProxy(result, parentTree.concat({target, property}))
           }
           return result
         },
         set(target, property: string, value, receiver) {
-          const path = parentTree.concat({target, property, receiver})
+          const path = parentTree.concat({target, property})
           const oldValue = target[property as keyof typeof target]
 
           if (Array.isArray(target) && property === 'length') {
