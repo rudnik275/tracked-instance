@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.5] - 2026-05-02
+
+### Changed
+
+- Internal refactor: dropped the unused `receiver` field from the Proxy's path items and unified `NestedProxyPathItem` with `LedgerPathItem` into a single internal `LedgerPath` type.
+- Internal refactor: collapsed the Proxy's two-call mutation protocol (`ledger.record(...)` + `onMutate()`) into a single `onMutation(path, value)` callback. `createTrackedProxy` no longer references `OriginalDataLedger`; the `triggerRef` wiring stays inside `createTrackedData` as a closure over `bumpLedger`.
+- Removed dead second pruning pass from `unsetAndPrune` after case analysis confirmed the existing loop already covers every reachable path-shape.
+
+Public API unchanged.
+
+---
+
 ## [2.0.4] - 2026-05-01
 
 ### Changed
