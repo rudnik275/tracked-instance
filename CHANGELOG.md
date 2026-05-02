@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.6] - 2026-05-02
+
+### Changed
+
+- Internal refactor: folded the four mutation-recording helpers (`recordChange`, `setOriginalDataValue`, `unsetAndPrune`, and the `markRemovedFieldsAsUndefined` inner closure) onto `OriginalDataLedger` as private methods. The **Equals Predicate** is now read from `this._equals` instead of being threaded as a function argument.
+- Internal refactor: replaced `ArrayInOriginalData` plus the plain-object store with a typed `LedgerNode` protocol (`LedgerObjectNode` + `LedgerArrayNode`). The five `instanceof ArrayInOriginalData` sites collapsed into a single `isLedgerNode` helper. The store is now a tree of `LedgerNode` containers with disjoint container/leaf slots — see `docs/adr/0003-ledger-store-container-leaf-disjoint.md` for the `captureAsLedgerNode` invariant.
+- Internal refactor: unified `walkLedgerForDiff` and `walkLedgerForReverse` behind a single `walkLedger(visitor)` traversal. `projectDiff` and `applyReverse` are now visitor implementations; the parent-before-children ordering that `applyReverse` depends on for array `length` restoration is preserved by the traversal structure.
+- Refreshed `CLAUDE.md` to describe the current engine shape (LedgerNode protocol, single-callback recording, visitor projection) and added ADR-0003 documenting the store's container/leaf disjointness invariant.
+
+Public API unchanged.
+
+---
+
 ## [2.0.5] - 2026-05-02
 
 ### Changed
