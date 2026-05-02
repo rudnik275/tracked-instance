@@ -381,6 +381,52 @@ describe('useTrackedInstance', async () => {
 
     expect(instance.isDirty.value).eq(false)
   })
+
+  it('should track wholesale replacement of an array field with a shorter array', () => {
+    const instance = useTrackedInstance({ hobbies: ['drift', 'films'] })
+    instance.data.value.hobbies = ['climbing']
+
+    expect(instance.isDirty.value).eq(true)
+    // index 0 changed, index 1 removed → appears as undefined in Changed Data
+    expect(instance.changedData.value).deep.eq({ hobbies: ['climbing', undefined] })
+
+    instance.reset()
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.data.value.hobbies).deep.eq(['drift', 'films'])
+  })
+
+  it('should track wholesale replacement of an array field with a longer array', () => {
+    const instance = useTrackedInstance({ tags: ['a'] })
+    instance.data.value.tags = ['x', 'y', 'z']
+
+    expect(instance.isDirty.value).eq(true)
+    expect(instance.changedData.value).deep.eq({ tags: ['x', 'y', 'z'] })
+
+    instance.reset()
+    expect(instance.data.value.tags).deep.eq(['a'])
+  })
+
+  it('should capture array Baseline when field type-changes from array to primitive', () => {
+    const instance = useTrackedInstance<{ hobbies: string[] | string }>({ hobbies: ['drift', 'films'] })
+    instance.data.value.hobbies = 'none'
+
+    expect(instance.isDirty.value).eq(true)
+    expect(instance.changedData.value).deep.eq({ hobbies: 'none' })
+
+    instance.reset()
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.data.value.hobbies).deep.eq(['drift', 'films'])
+  })
+
+  it('should not dirty when expanding array length with empty slots', () => {
+    // Proxy synthesises set-undefined for new indices; since they were already absent
+    // (undefined), the Ledger records no change and isDirty stays false.
+    const instance = useTrackedInstance([1, 2, 3])
+    ;(instance.data.value as number[]).length = 5
+
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.data.value.length).eq(5)
+  })
 })
 
 describe('useTrackedInstance with equals option', () => {

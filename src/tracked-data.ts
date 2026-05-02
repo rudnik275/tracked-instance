@@ -460,10 +460,19 @@ class OriginalDataLedger {
     const updatedData = cloneDeep(liveData)
     walkLedger(this._store, {
       visitContainer(path, node): boolean {
-        // Restore array length (parent-before-children ordering ensures this runs
-        // before any scalar indices of this node are written below).
+        // Restore array length before children are written (parent-before-children
+        // ordering). If the field was type-changed to a non-array (e.g. hobbies went
+        // from string[] to string), create a fresh array so child visits populate it
+        // correctly instead of building a plain object with numeric string keys.
         if (node.kind === 'array') {
-          setAtPath(updatedData as Record<string, any>, path.concat('length'), node.length)
+          const cur = getAtPath(updatedData as any, path)
+          if (Array.isArray(cur)) {
+            cur.length = node.length
+          } else {
+            const restored: unknown[] = []
+            restored.length = node.length
+            setAtPath(updatedData as Record<string, any>, path, restored)
+          }
         }
         return true
       },
