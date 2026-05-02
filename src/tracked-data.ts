@@ -296,9 +296,9 @@ class OriginalDataLedger {
 // ---------- tracked proxy ----------
 
 /**
- * Wraps `initialData` in a deeply-Proxy'd Vue ref. Every mutation at any depth is
- * recorded into `ledger`, then `onMutate` is called so the owner can drive Vue
- * reactivity (a triggerRef on the shallowRef holding the ledger).
+ * Wraps `initialData` in a deeply-Proxy'd Vue ref. Every mutation at any depth calls
+ * `onMutation(path, value)` exactly once so the owner can record the change and drive
+ * Vue reactivity in a single step.
  *
  * Handles three responsibilities the public composable shouldn't care about:
  *   - nested Proxy creation + path bookkeeping
@@ -309,8 +309,7 @@ class OriginalDataLedger {
  */
 const createTrackedProxy = <Data extends Record<string, any>>(
   initialData: Data,
-  ledger: OriginalDataLedger,
-  onMutate: () => void,
+  onMutation: (path: LedgerPath, value: unknown) => void,
 ): Ref<Data> =>
   customRef<Data>((track, trigger) => {
     const createProxy = <Inner extends Record<string, any>>(
@@ -343,8 +342,7 @@ const createTrackedProxy = <Data extends Record<string, any>>(
               }
             }
           } else {
-            ledger.record(path, value)
-            onMutate()
+            onMutation(path, value)
           }
 
           const result = Reflect.set(target, property, cloneDeep(value), receiver)
@@ -353,8 +351,7 @@ const createTrackedProxy = <Data extends Record<string, any>>(
         },
         deleteProperty(target, property: string) {
           const path = parentTree.concat({target, property})
-          ledger.record(path, undefined)
-          onMutate()
+          onMutation(path, undefined)
           const result = Reflect.deleteProperty(target, property)
           trigger()
           return result
@@ -409,7 +406,10 @@ export const createTrackedData = <Data extends Record<string, any>>(
   const ledgerRef = shallowRef(ledger)
   const bumpLedger = () => triggerRef(ledgerRef)
 
-  const dataRef = createTrackedProxy<Data>(cloneDeep(initialValue), ledger, bumpLedger)
+  const dataRef = createTrackedProxy<Data>(cloneDeep(initialValue), (path, value) => {
+    ledger.record(path, value)
+    bumpLedger()
+  })
 
   const isDirty = computed<boolean>(() => !ledgerRef.value.isEmpty())
 
