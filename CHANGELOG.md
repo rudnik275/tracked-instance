@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.7] - 2026-05-02
+
+### Fixed
+
+- `reset()` now correctly restores an array field after a type-change mutation (e.g. `hobbies: string[]` set to `'none'`). Previously `applyReverse` would produce a plain object with numeric string keys instead of the original array; now a fresh array of the correct length is created at the path before child indices are populated.
+
+### Changed
+
+- Added `@vitest/coverage-v8` as a dev dependency for coverage reporting.
+- Added four missing tests covering: wholesale array replacement with a shorter array, wholesale array replacement with a longer array, direct `length` increase on an array, and type-change from array to primitive (the scenario that revealed the `reset()` bug above).
+
+Public API unchanged.
+
+---
+
 ## [2.0.6] - 2026-05-02
 
 ### Changed
