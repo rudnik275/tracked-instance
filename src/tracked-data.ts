@@ -133,13 +133,6 @@ const unsetAndPrune = (store: Record<string, any>, path: string[]) => {
       break
     }
   }
-  if (path.length >= 1) {
-    const topKey = path[0]
-    const topValue = store[topKey]
-    if (topValue !== undefined && typeof topValue === 'object' && Object.keys(topValue).length === 0) {
-      delete store[topKey]
-    }
-  }
 }
 
 const recordChange = (
