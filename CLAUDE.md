@@ -9,12 +9,12 @@ Vue 3 library for tracking granular form/data changes and syncing only modified 
 
 ## Tech stack
 
-- **TypeScript** 5.7, strict mode (`noUnusedLocals`, `noUnusedParameters`)
+- **TypeScript** 6, strict mode (`noUnusedLocals`, `noUnusedParameters`)
 - **Vue 3** — peer dependency, not bundled
-- **lodash-es** — get, set, has, unset, cloneDeepWith
+- **No runtime dependencies** — `cloneDeep` and `isObject` are local in `src/utils.ts`
 - **Module format** — ESM only (`dist/index.mjs`)
 - **Build** — `tsc` (types → `dist/types/`) + `esbuild` (bundle → `dist/index.mjs`)
-- **Tests** — Vitest 3 (`yarn test`)
+- **Tests** — Vitest 4 (`yarn test`)
 - **Package manager** — yarn
 
 ## Project structure
@@ -22,12 +22,15 @@ Vue 3 library for tracking granular form/data changes and syncing only modified 
 ```
 src/
   index.ts              — public exports only
-  tracked-instance.ts   — useTrackedInstance composable
+  tracked-instance.ts   — useTrackedInstance composable (thin adapter; wraps in { root: Data })
   collection.ts         — useCollection composable
-  utils.ts              — shared utilities (Proxy helpers, cloneDeep, iterateObject)
+  tracked-data.ts       — internal engine: Ledger, Proxy, LedgerNode protocol, walker
+  utils.ts              — shared utilities (cloneDeep, isObject, DeepPartial)
 tests/
   tracked-instance.spec.ts
   collection.spec.ts
+docs/
+  adr/                  — architecture decisions (read before refactoring the engine)
 dist/                   — compiled output (do not edit manually)
 ```
 
@@ -73,35 +76,50 @@ type DeepPartial<T> = T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } 
 
 ### useTrackedInstance
 
-Data is wrapped inside `{ root: Data }` internally to support primitive root values.
+Data is wrapped inside `{ root: Data }` internally so the engine can assume a Record-shaped root and primitive root values still work.
 
 ```
 data.value.field = x
-  → Proxy set trap fires (createNestedRef in utils.ts)
-  → snapshotValueToOriginalData() stores original value in _originalData (only first change)
-  → value is cloneDeep'd before storing in _data
-  → _changedData (computed) runs iterateObject(_originalData) comparing against _data
-  → changedData exposes only fields that still differ from original
+  → Proxy set trap fires (createTrackedProxy in tracked-data.ts)
+  → onMutation(path, value) callback is invoked exactly once (see ADR-0002)
+  → ledger.record(path, value) writes the Baseline value into the sparse store keyed by Path
+  → triggerRef bumps the ledgerRef; isDirty and changedData recompute
+  → projectDiff walks the Ledger and reads current values from live data → Changed Data
+  → reset() applies ledger.applyReverse(liveData) to restore the Baseline, then clears the Ledger
 ```
 
-`_originalData` is sparse — it only contains fields that have been touched. When a field reverts to original, its key is removed from `_originalData`. `isDirty` checks `Object.keys(_originalData).length > 0`.
+The **Ledger**'s store is sparse — only **Paths** that have been touched are recorded. When a field reverts to its **Baseline**, its **Path** is unset and empty parents are pruned. `isDirty` is `!ledger.isEmpty()`.
 
-### ArrayInOriginalData
+### LedgerNode protocol
 
-Arrays in `_originalData` are stored as `ArrayInOriginalData` instances (not plain arrays) to avoid lodash/Proxy treating them as normal array operations. This class stores only `length` (non-enumerable) so array indices can be tracked as plain keys without interfering with length-change detection.
+The **Ledger**'s store is a tree of `LedgerNode` containers, never plain JS objects. Two file-private classes in `tracked-data.ts`:
 
-When array length decreases, the Proxy `set` trap on `length` calls `triggerChangingArrayItems()`, which deletes extra indices from the receiver or marks them as `undefined` depending on direction.
+- `LedgerObjectNode` — backs an object branch; sparse `entries()` over recorded keys; `isEmpty()` for prune detection
+- `LedgerArrayNode` — backs an array branch; carries the **Baseline** `length` so `applyReverse` can restore it before scalar leaves are written
 
-### snapshotValueToOriginalData
+Container-vs-leaf disambiguation goes through one helper, `isLedgerNode(value)`, never inlined per call site (see ADR-0002 for why this lives in one module). When a wholesale **Baseline** value is captured at a **Path** (e.g. `data.contact = null` overwrites a prior object), `captureAsLedgerNode` recursively wraps it so every recorded subtree is uniformly traversable through the protocol — see ADR-0003 for the disjointness invariant.
 
-Called on every `set`/`deleteProperty`. Logic:
-- If `_originalData` already has the path → check if new value matches original; if yes, unset from `_originalData` (field is clean again)
-- If not in `_originalData` and `newValue !== oldValue` → store original value
-- For objects/arrays → recurse, also marking removed keys as `undefined`
+When an array's `length` decreases, the Proxy `set` trap on `length` synthesizes per-index `delete` events on the receiver so the **Ledger** sees individual index mutations consistent with the new length; on increase it synthesizes per-index `set undefined` events.
 
-### changedData computation
+### Recording a mutation
 
-`iterateObject(_originalData)` traverses only leaf nodes by default. For each leaf path, it reads the current value from `_data` and sets it in `changedData`. Type mismatch between `_originalData` and `_data` (e.g. object replaced by primitive) stops deep traversal — the whole field is included as-is.
+`OriginalDataLedger.record(path, value)` is invoked from the Proxy's `onMutation` callback on every `set`/`deleteProperty`. Logic:
+
+- If the **Path** is already recorded → check if the new value matches the **Baseline** via the **Equals Predicate** (default `===`); if yes, unset the **Path** and prune empty parent containers
+- If the **Path** is not recorded and `newValue !== oldValue` → write the **Baseline** value via `_setStoreValue`
+- For objects → `_recordObjectMutation` recurses; keys removed by the assignment are recorded as `undefined`
+- For arrays → `_recordArrayMutation` walks by index
+
+The **Equals Predicate** lives on `this._equals` and is never threaded as a parameter.
+
+### Changed Data projection
+
+`OriginalDataLedger.projectDiff(liveData)` runs `walkLedger` with a visitor:
+
+- `visitContainer(path, node)` — checks whether the live data at `path` has the same shape as the recorded `LedgerNode`. If shapes diverge (recorded object, live primitive) the whole live value is written into the result and the visitor returns `false` to stop descent; otherwise it descends.
+- `visitLeaf(path, value)` — reads the current value at `path` from live data and writes it into the result.
+
+`applyReverse` consumes the same `walkLedger` traversal with a different visitor that restores `LedgerArrayNode.length` on the parent visit before scalar indices are written by leaf visits — that's why container nodes are visited parent-before-children.
 
 ### useCollection
 
@@ -117,15 +135,16 @@ Each item is a `markRaw` object containing a `TrackedInstance`. `markRaw` preven
 - **Primitive root** — `useTrackedInstance(42)` works; data is wrapped in `{ root: 42 }` internally
 - **Type change** — if a field switches from object to primitive (or vice versa), the whole field appears in `changedData`, not a nested diff
 - **Revert to original** — if a changed field is set back to its original value, it disappears from `changedData` and `isDirty` may become false
-- **Nested deletions** — `delete data.value.obj.key` records `undefined` in `_originalData`; `changedData` will contain `{ obj: { key: undefined } }`
+- **Nested deletions** — `delete data.value.obj.key` records `undefined` in the **Ledger**; **Changed Data** will contain `{ obj: { key: undefined } }`
 
 ## Code conventions
 
-- Private/internal fields: underscore prefix (`_originalData`, `_data`, `_changedData`)
+- Private/internal fields: underscore prefix (`_store`, `_equals`, `_entries`)
 - Public API: descriptive camelCase (`loadData`, `reset`, `isDirty`, `changedData`)
-- Vue Composition API: `computed`, `ref`, `customRef`, `markRaw`
+- Vue Composition API: `computed`, `ref`, `customRef`, `markRaw`, `shallowRef`, `triggerRef`
 - Generics for type safety: `<Data>`, `<Item>`, `<Meta>`
 - `DeepPartial<T>` for partial nested updates
+- Use the `CONTEXT.md` glossary in code comments and commit messages (**Ledger**, **Path**, **Baseline**, **Changed Data**, **Equals Predicate**, etc.)
 
 ## Common commands
 
