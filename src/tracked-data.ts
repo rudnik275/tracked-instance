@@ -42,18 +42,22 @@ function unsetAtPath(obj: any, path: string[]): boolean {
 
 // ---------- ledger node protocol ----------
 
-// Strategy: two thin classes sharing a `LedgerNode` discriminated union via a `kind` tag,
-// disambiguated everywhere through the single `isLedgerNode` helper below.
+// Strategy: one container class tagged by `kind` ('object' | 'array'), disambiguated
+// from recorded leaf values everywhere through the single `isLedgerNode` helper below.
 
 /**
- * Container node in the Ledger that backs an object branch in the live data.
+ * Container node in the Ledger that backs an object or array branch in the live data.
  *
  * Wraps a plain Record so entries() iterates only recorded children — leaves and
  * nested LedgerNodes — preserving the "sparse, only changed paths" Ledger invariant.
+ * Array nodes additionally carry the Baseline `length` so applyReverse can restore it
+ * before scalar leaves are written; `length` is unread (and harmless) on object nodes.
+ * Indices are stored as string keys to keep the Path shape uniform across both kinds.
  */
-class LedgerObjectNode {
-  readonly kind = 'object' as const
+class LedgerNode {
   private readonly _entries: Record<string, LedgerNode | unknown> = {}
+
+  constructor(readonly kind: 'object' | 'array', public length = 0) {}
 
   has(key: string): boolean {
     return hasOwn(this._entries, key)
@@ -79,56 +83,12 @@ class LedgerObjectNode {
     return Object.keys(this._entries).length === 0
   }
 }
-
-/**
- * Container node in the Ledger that backs an array branch in the live data.
- *
- * Carries the Baseline `length` so applyReverse can restore it before scalar leaves
- * are written. Entries are recorded indices only (sparse), iterated as string keys
- * to keep the Path shape uniform with LedgerObjectNode.
- */
-class LedgerArrayNode {
-  readonly kind = 'array' as const
-  length: number
-  private readonly _entries: Record<string, LedgerNode | unknown> = {}
-
-  constructor(length: number) {
-    this.length = length
-  }
-
-  has(key: string): boolean {
-    return hasOwn(this._entries, key)
-  }
-
-  get(key: string): LedgerNode | unknown {
-    return this._entries[key]
-  }
-
-  set(key: string, value: LedgerNode | unknown): void {
-    this._entries[key] = value
-  }
-
-  delete(key: string): void {
-    delete this._entries[key]
-  }
-
-  entries(): IterableIterator<[string, LedgerNode | unknown]> {
-    return Object.entries(this._entries)[Symbol.iterator]()
-  }
-
-  isEmpty(): boolean {
-    return Object.keys(this._entries).length === 0
-  }
-}
-
-type LedgerNode = LedgerObjectNode | LedgerArrayNode
 
 /**
  * The single disambiguation helper. Every recorder/walker that needs to tell
  * "is this a Ledger container or a recorded leaf value?" goes through this.
  */
-const isLedgerNode = (value: unknown): value is LedgerNode =>
-  value instanceof LedgerObjectNode || value instanceof LedgerArrayNode
+const isLedgerNode = (value: unknown): value is LedgerNode => value instanceof LedgerNode
 
 /**
  * Wraps a wholesale-captured Baseline value as a LedgerNode tree so the projection
@@ -137,14 +97,14 @@ const isLedgerNode = (value: unknown): value is LedgerNode =>
  */
 function captureAsLedgerNode(value: unknown): LedgerNode | unknown {
   if (Array.isArray(value)) {
-    const node = new LedgerArrayNode(value.length)
+    const node = new LedgerNode('array', value.length)
     for (let i = 0; i < value.length; i++) {
       node.set(String(i), captureAsLedgerNode(value[i]))
     }
     return node
   }
   if (isObject(value)) {
-    const node = new LedgerObjectNode()
+    const node = new LedgerNode('object')
     for (const [key, child] of Object.entries(value as Record<string, any>)) {
       node.set(key, captureAsLedgerNode(child))
     }
@@ -162,38 +122,38 @@ interface LedgerPathItem {
 
 type LedgerPath = LedgerPathItem[]
 
-/**
- * Reads the value at `path` from the Ledger. Returns undefined if any
- * intermediate slot is missing or is a recorded leaf rather than a container.
- */
-function getInLedger(root: LedgerNode, path: string[]): LedgerNode | unknown {
-  let cur: LedgerNode | unknown = root
-  for (const key of path) {
-    if (!isLedgerNode(cur) || !cur.has(key)) return undefined
-    cur = cur.get(key)
-  }
-  return cur
+interface LedgerLookup {
+  /** True when `path` resolves to a recorded entry (even one whose value is `undefined`). */
+  found: boolean
+  /** The recorded value at `path` — a LedgerNode container or a captured leaf — or undefined. */
+  value: LedgerNode | unknown
 }
 
 /**
- * Tests whether `path` resolves to a recorded entry inside the Ledger.
+ * Resolves `path` inside the Ledger in a single walk, reporting both whether the
+ * Path is recorded and the value found there. `found` is distinct from a
+ * `value` of `undefined`: a removed key is recorded as the leaf `undefined`, so
+ * callers must check `found` rather than `value != null` to tell "recorded as
+ * deleted" apart from "never touched".
  */
-function hasInLedger(root: LedgerNode, path: string[]): boolean {
-  if (path.length === 0) return true
+function lookupInLedger(root: LedgerNode, path: string[]): LedgerLookup {
+  if (path.length === 0) return {found: true, value: root}
   let cur: LedgerNode = root
   for (let i = 0; i < path.length - 1; i++) {
     const next = cur.get(path[i])
-    if (!isLedgerNode(next)) return false
+    if (!isLedgerNode(next)) return {found: false, value: undefined}
     cur = next
   }
-  return cur.has(path[path.length - 1]!)
+  const lastKey = path[path.length - 1]!
+  if (!cur.has(lastKey)) return {found: false, value: undefined}
+  return {found: true, value: cur.get(lastKey)}
 }
 
 /**
  * Removes the leaf at `path` and prunes any ancestor LedgerNode that becomes
  * empty as a result. Empty-container detection goes through node.isEmpty(),
  * which counts only recorded entries — never the array `length` field — so
- * a LedgerArrayNode with no surviving indices is treated as empty just like
+ * an array LedgerNode with no surviving indices is treated as empty just like
  * the previous Object.keys-on-AID trick.
  */
 function unsetInLedger(root: LedgerNode, path: string[]): void {
@@ -244,9 +204,9 @@ interface LedgerVisitor {
  * Traverses the entire Ledger tree rooted at `store`, dispatching to the
  * supplied visitor in parent-before-children order. Container nodes are
  * visited before their children so that `applyReverse` can restore an array's
- * `length` (recorded on the LedgerArrayNode) before writing scalar leaves.
+ * `length` (recorded on the array LedgerNode) before writing scalar leaves.
  */
-function walkLedger(store: LedgerObjectNode, visitor: LedgerVisitor): void {
+function walkLedger(store: LedgerNode, visitor: LedgerVisitor): void {
   const walk = (path: string[], node: LedgerNode): void => {
     for (const [key, value] of node.entries()) {
       const currentPath = path.concat(key)
@@ -277,7 +237,7 @@ interface OriginalDataLedgerOptions {
  * one level up in createTrackedData and fires once per recorded mutation.
  */
 class OriginalDataLedger {
-  private _store: LedgerObjectNode = new LedgerObjectNode()
+  private _store: LedgerNode = new LedgerNode('object')
   private readonly _equals?: (a: unknown, b: unknown) => boolean
 
   constructor(options: OriginalDataLedgerOptions = {}) {
@@ -305,11 +265,11 @@ class OriginalDataLedger {
         }
       } else {
         if (Array.isArray(oldValueParent[property])) {
-          const node = new LedgerArrayNode(oldValueParent[property].length)
+          const node = new LedgerNode('array', oldValueParent[property].length)
           target.set(property, node)
           target = node
         } else if (isObject(oldValueParent[property])) {
-          const node = new LedgerObjectNode()
+          const node = new LedgerNode('object')
           target.set(property, node)
           target = node
         }
@@ -321,71 +281,52 @@ class OriginalDataLedger {
   }
 
   /**
-   * Removes a leaf and prunes any ancestor LedgerNode that becomes empty.
-   *
-   * node.isEmpty() counts only recorded entries — never the LedgerArrayNode
-   * `length` field — so an array node with no surviving indices is treated as
-   * empty and unset from its parent, matching the behavior of the previous
-   * Object.keys-ignoring-non-enumerable-length approach.
-   */
-  private _unsetAndPrune(path: string[]): void {
-    unsetInLedger(this._store, path)
-  }
-
-  /**
-   * Records `undefined` for any keys present in `valueInStore` or `oldValue` but
+   * Records `undefined` for any keys present in `storeNode` or `oldValue` but
    * absent from the incoming `value`, so that keys removed by an object/array
    * replacement land in the Ledger as deletions.
    */
   private _markMissingKeysAsRemoved(
     path: LedgerPath,
     value: Record<string, any>,
-    valueInStore: LedgerNode | undefined,
+    storeNode: LedgerNode | undefined,
     oldValue: Record<string, any> | undefined,
   ): void {
-    const keysSet = new Set<string>()
-    if (valueInStore) {
-      for (const [key] of valueInStore.entries()) keysSet.add(key)
+    const present = new Set(Object.keys(value))
+    const removed = new Set<string>()
+    if (storeNode) for (const [key] of storeNode.entries()) removed.add(key)
+    if (oldValue) for (const key of Object.keys(oldValue)) removed.add(key)
+    for (const key of removed) {
+      if (present.has(key)) continue
+      // `oldValue || value`: see _recordContainerMutation for why the new value
+      // stands in as the parent when there is no Baseline subtree.
+      this._recordLeaf(path.concat({target: oldValue || value, property: key}), undefined)
     }
-    if (oldValue) for (const key of Object.keys(oldValue)) keysSet.add(key)
-    const keys = Array.from(keysSet).filter((key) => !Object.keys(value).includes(key))
+  }
+
+  /**
+   * Handles a Proxy-trap event for an object or array value: marks removed
+   * keys/indices as deleted, then recurses into each present key/index. The only
+   * object-vs-array difference is the key list, computed inline.
+   *
+   * `oldValue` and `storeNode` are resolved once by the caller (`record`) and
+   * passed in so this method does not re-walk the Ledger for the parent path.
+   */
+  private _recordContainerMutation(
+    path: LedgerPath,
+    value: Record<string, any>,
+    oldValue: Record<string, any> | undefined,
+    storeNode: LedgerNode | undefined,
+  ): void {
+    this._markMissingKeysAsRemoved(path, value, storeNode, oldValue)
+    const keys = Array.isArray(value) ? value.map((_, i) => String(i)) : Object.keys(value)
     for (const key of keys) {
-      this._recordLeaf(
-        path.concat({target: oldValue || value, property: key}),
-        undefined,
-      )
-    }
-  }
-
-  /**
-   * Handles a Proxy-trap event for an object value: marks removed keys as deleted,
-   * then recurses into each present key.
-   */
-  private _recordObjectMutation(path: LedgerPath, value: Record<string, any>): void {
-    const pathAsString = path.map((i) => i.property)
-    const valueInStore = getInLedger(this._store, pathAsString)
-    const valueInStoreNode = isLedgerNode(valueInStore) ? valueInStore : undefined
-    const lastPathItem = path.at(-1)!
-    const oldValue = lastPathItem.target[lastPathItem.property]
-    this._markMissingKeysAsRemoved(path, value, valueInStoreNode, oldValue)
-    for (const key of Object.keys(value)) {
+      // `oldValue || value` substitutes the new value as the Baseline parent when
+      // there is no prior subtree (e.g. a wholly-new branch). With a real Baseline,
+      // children compare new-vs-old; without one they compare new-vs-new and so are
+      // NOT individually recorded — the wholesale capture at this Path already covers
+      // them. Replacing this with `oldValue?.[key]` would make children compare against
+      // `undefined` and spuriously record every one. Load-bearing — do not simplify.
       this.record(path.concat({target: oldValue || value, property: key}), value[key])
-    }
-  }
-
-  /**
-   * Handles a Proxy-trap event for an array value: marks removed indices as deleted,
-   * then recurses into each present index.
-   */
-  private _recordArrayMutation(path: LedgerPath, value: any[]): void {
-    const pathAsString = path.map((i) => i.property)
-    const valueInStore = getInLedger(this._store, pathAsString)
-    const valueInStoreNode = isLedgerNode(valueInStore) ? valueInStore : undefined
-    const lastPathItem = path.at(-1)!
-    const oldValue = lastPathItem.target[lastPathItem.property]
-    this._markMissingKeysAsRemoved(path, value as unknown as Record<string, any>, valueInStoreNode, oldValue)
-    for (const key of value.keys()) {
-      this.record(path.concat({target: oldValue || value, property: key.toString()}), value[key])
     }
   }
 
@@ -393,39 +334,41 @@ class OriginalDataLedger {
    * Handles a Proxy-trap event for a primitive (leaf) value: either records the
    * Baseline value if the field is first touched, or clears it from the Ledger
    * if the current value matches the Baseline (field reverted to clean).
+   *
+   * Reads the Ledger once via lookupInLedger: `found` tells first-touch from
+   * already-recorded (a recorded leaf may legitimately be `undefined`), and the
+   * resolved value is the Baseline to compare a revert against.
    */
   private _recordLeaf(path: LedgerPath, value: unknown): void {
     const pathAsString = path.map((i) => i.property)
-    const valueInStore = getInLedger(this._store, pathAsString)
+    const {found, value: baseline} = lookupInLedger(this._store, pathAsString)
     const lastPathItem = path.at(-1)!
     const oldValue = lastPathItem.target[lastPathItem.property]
-    const isEqual = this._equals ? this._equals(oldValue, value) : oldValue === value
-    const isEqualToOriginal = this._equals ? this._equals(valueInStore, value) : valueInStore === value
-    if (!hasInLedger(this._store, pathAsString)) {
-      if (!isEqual) {
-        this._setStoreValue(path)
-      }
-    } else if (isEqualToOriginal) {
-      this._unsetAndPrune(pathAsString)
+    if (!found) {
+      const isEqual = this._equals ? this._equals(oldValue, value) : oldValue === value
+      if (!isEqual) this._setStoreValue(path)
+    } else {
+      const isEqualToBaseline = this._equals ? this._equals(baseline, value) : baseline === value
+      if (isEqualToBaseline) unsetInLedger(this._store, pathAsString)
     }
   }
 
   /**
-   * Single entry point called by the Proxy for every mutation. Inspects the
-   * current value, the value-in-Ledger (a LedgerNode container, a captured
-   * leaf-object/array, or a primitive leaf), and the old live value; dispatches
-   * to the appropriate case so all three "shape" judgments stay in sync.
+   * Single entry point called by the Proxy for every mutation. Resolves the
+   * value-in-Ledger (a LedgerNode container, a captured leaf, or absent) and the
+   * old live value once, then dispatches to the container or leaf recorder so all
+   * "shape" judgments stay in sync and the parent Path is walked only once.
    */
   record(path: LedgerPath, value: unknown): void {
     const pathAsString = path.map((i) => i.property)
-    const valueInStore = getInLedger(this._store, pathAsString)
+    const {value: valueInStore} = lookupInLedger(this._store, pathAsString)
     const lastPathItem = path.at(-1)!
     const oldValue = lastPathItem.target[lastPathItem.property]
-    const storeKind = isLedgerNode(valueInStore) ? valueInStore.kind : undefined
-    if (isObject(value) && (storeKind === 'object' || isObject(oldValue))) {
-      this._recordObjectMutation(path, value as Record<string, any>)
-    } else if (Array.isArray(value) && (storeKind === 'array' || Array.isArray(oldValue))) {
-      this._recordArrayMutation(path, value as any[])
+    const storeNode = isLedgerNode(valueInStore) ? valueInStore : undefined
+    if (isObject(value) && (storeNode?.kind === 'object' || isObject(oldValue))) {
+      this._recordContainerMutation(path, value as Record<string, any>, oldValue, storeNode)
+    } else if (Array.isArray(value) && (storeNode?.kind === 'array' || Array.isArray(oldValue))) {
+      this._recordContainerMutation(path, value as any[], oldValue, storeNode)
     } else {
       this._recordLeaf(path, value)
     }
@@ -488,7 +431,7 @@ class OriginalDataLedger {
   }
 
   clear(): void {
-    this._store = new LedgerObjectNode()
+    this._store = new LedgerNode('object')
   }
 }
 
