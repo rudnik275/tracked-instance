@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.8] - 2026-05-29
+
+### Changed
+
+- Internal refactor of the **Ledger** engine (`tracked-data.ts`), no behavior change:
+  - Collapsed `LedgerObjectNode` and `LedgerArrayNode` — which had byte-identical bodies — into a single `LedgerNode` class tagged by `kind`, with the array-only Baseline `length` as an optional field. `isLedgerNode` is now a single `instanceof` check.
+  - Merged the near-identical `_recordObjectMutation` and `_recordArrayMutation` into one `_recordContainerMutation`; the only object-vs-array difference (the key list) is computed inline.
+  - `record()` now resolves the value-in-**Ledger** and old live value once and threads them into the helpers, so each mutation walks the store once instead of several times. `getInLedger` + `hasInLedger` collapsed into a single-walk `lookupInLedger`.
+  - Inlined the `_unsetAndPrune` one-line wrapper, made missing-key detection linear (was O(n²)), and documented the load-bearing `oldValue || value` Baseline-fallback so it is not "simplified" into a behavior change.
+- Net −57 lines; one fewer class concept and two fewer methods to maintain.
+
+Public API unchanged.
+
+---
+
 ## [2.0.7] - 2026-05-02
 
 ### Fixed
