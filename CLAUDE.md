@@ -40,8 +40,8 @@ dist/                   — compiled output (do not edit manually)
 // src/tracked-instance.ts
 interface TrackedInstance<Data> {
   data: Ref<Data>                        // reactive reference to current data
-  isDirty: Ref<boolean>                  // true when any field differs from original
-  changedData: Ref<DeepPartial<Data>>    // only the changed fields (nested diff)
+  isDirty: ComputedRef<boolean>          // true when any field differs from original
+  changedData: ComputedRef<DeepPartial<Data>>  // only the changed fields (nested diff)
   loadData(newData: Data): void          // replace data and clear dirty state
   reset(): void                          // revert data to last loadData() state
 }
@@ -92,10 +92,10 @@ The **Ledger**'s store is sparse — only **Paths** that have been touched are r
 
 ### LedgerNode protocol
 
-The **Ledger**'s store is a tree of `LedgerNode` containers, never plain JS objects. Two file-private classes in `tracked-data.ts`:
+The **Ledger**'s store is a tree of `LedgerNode` containers, never plain JS objects. One file-private class in `tracked-data.ts`, tagged by `kind: 'object' | 'array'`:
 
-- `LedgerObjectNode` — backs an object branch; sparse `entries()` over recorded keys; `isEmpty()` for prune detection
-- `LedgerArrayNode` — backs an array branch; carries the **Baseline** `length` so `applyReverse` can restore it before scalar leaves are written
+- `kind: 'object'` — backs an object branch; sparse `entries()` over recorded keys; `isEmpty()` for prune detection
+- `kind: 'array'` — backs an array branch; additionally carries the **Baseline** `length` so `applyReverse` can restore it before scalar leaves are written (`length` is unread on object nodes)
 
 Container-vs-leaf disambiguation goes through one helper, `isLedgerNode(value)`, never inlined per call site (see ADR-0002 for why this lives in one module). When a wholesale **Baseline** value is captured at a **Path** (e.g. `data.contact = null` overwrites a prior object), `captureAsLedgerNode` recursively wraps it so every recorded subtree is uniformly traversable through the protocol — see ADR-0003 for the disjointness invariant.
 
@@ -107,8 +107,7 @@ When an array's `length` decreases, the Proxy `set` trap on `length` synthesizes
 
 - If the **Path** is already recorded → check if the new value matches the **Baseline** via the **Equals Predicate** (default `===`); if yes, unset the **Path** and prune empty parent containers
 - If the **Path** is not recorded and `newValue !== oldValue` → write the **Baseline** value via `_setStoreValue`
-- For objects → `_recordObjectMutation` recurses; keys removed by the assignment are recorded as `undefined`
-- For arrays → `_recordArrayMutation` walks by index
+- For objects and arrays → `_recordContainerMutation` recurses (the only object-vs-array difference is the key list); keys/indices removed by the assignment are recorded as `undefined`
 
 The **Equals Predicate** lives on `this._equals` and is never threaded as a parameter.
 
@@ -119,7 +118,9 @@ The **Equals Predicate** lives on `this._equals` and is never threaded as a para
 - `visitContainer(path, node)` — checks whether the live data at `path` has the same shape as the recorded `LedgerNode`. If shapes diverge (recorded object, live primitive) the whole live value is written into the result and the visitor returns `false` to stop descent; otherwise it descends.
 - `visitLeaf(path, value)` — reads the current value at `path` from live data and writes it into the result.
 
-`applyReverse` consumes the same `walkLedger` traversal with a different visitor that restores `LedgerArrayNode.length` on the parent visit before scalar indices are written by leaf visits — that's why container nodes are visited parent-before-children.
+`applyReverse` consumes the same `walkLedger` traversal with a different visitor that restores the container shape (and, for array nodes, the **Baseline** `length`) on the parent visit before scalar indices are written by leaf visits — that's why container nodes are visited parent-before-children.
+
+Both projections read the **raw** live data (not the Proxy) and create missing intermediate containers by the recorded `LedgerNode.kind`, never by guessing from key shape — a plain object keyed by numeric strings (`{0: 'a'}`) must stay an object in **Changed Data**.
 
 ### useCollection
 
@@ -136,6 +137,9 @@ Each item is a `markRaw` object containing a `TrackedInstance`. `markRaw` preven
 - **Type change** — if a field switches from object to primitive (or vice versa), the whole field appears in `changedData`, not a nested diff
 - **Revert to original** — if a changed field is set back to its original value, it disappears from `changedData` and `isDirty` may become false
 - **Nested deletions** — `delete data.value.obj.key` records `undefined` in the **Ledger**; **Changed Data** will contain `{ obj: { key: undefined } }`
+- **Stable proxy identity** — repeated reads of the same nested object return the same Proxy (`data.value.obj === data.value.obj`), so `includes`/`indexOf` and Map/Set keys work
+- **Delete of a key holding `undefined`** — `delete data.value.a` where `a` was `undefined` is NOT tracked (old and new values are equal); the key disappears, `isDirty` stays false, `reset()` won't restore it. Documented limitation, pinned by test
+- **Symbol keys** — symbol-keyed reads/writes bypass tracking entirely: the write lands in the data but never reaches the **Ledger** (a symbol can't be represented in a string-keyed **Path**)
 
 ## Code conventions
 

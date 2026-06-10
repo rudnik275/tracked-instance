@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.9] - 2026-06-10
+
+### Fixed
+
+- `Collection.remove()` no longer throws `TypeError` on an invalid or stale index: a second `item.remove()` on the same item, `remove()` on an out-of-range index, or `remove()` on an item reference that survived a `loadData()` are now safe no-ops.
+- Nested proxy identity is now stable: repeated reads of the same nested object/array return the same Proxy (`data.value.obj === data.value.obj`), so identity-based operations work — `includes`/`indexOf` on arrays of objects, Map/Set keys, memoization by reference. Also removes per-access Proxy allocation on reads.
+- **Changed Data** no longer turns a plain object keyed by numeric strings (`{0: 'a'}`) into an array. Missing intermediate containers in `projectDiff`/`applyReverse` are now created by the recorded `LedgerNode.kind` instead of guessing from key shape; `reset()` likewise restores the correct container type after a type-change mutation on such objects.
+- `isObject` no longer throws `ReferenceError` in runtimes without the `File` global (Node < 20 / some SSR environments).
+- Symbol-keyed writes no longer half-track: they bypass the **Ledger** entirely (previously they flipped `isDirty` while being invisible in `changedData`).
+
+### Changed
+
+- Internal projections (`changedData`, `reset()`) now read the raw live data instead of going through the tracking Proxy — every walk previously paid Proxy-trap cost and allocated throwaway nested proxies; reactivity is unchanged (the ledger ref covers invalidation).
+- `TrackedInstance.isDirty` / `changedData` are now typed `ComputedRef` (they always were read-only computeds); `ComputedRef` is assignable to `Ref`, so no consumer change needed.
+- Added ESLint (flat config) with `yarn lint`; `isObject` is now a TS type predicate, removing manual casts in the engine.
+- Documented limitations (pinned by tests): `delete` of a key whose value is `undefined` is not tracked; symbol-keyed properties are exempt from tracking.
+- Docs refreshed: CLAUDE.md/ADR-0003 now describe the single kind-tagged `LedgerNode` (classes collapsed in 2.0.8), README's `useCollection` signature matches the actual single-options-object API.
+
 ## [2.0.8] - 2026-05-29
 
 ### Changed

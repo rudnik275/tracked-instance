@@ -13,12 +13,12 @@ export type DeepPartial<Value> = Value extends object
  * Returns true only for plain objects — intentionally excludes Array, Date, File, Map,
  * and Set so they are treated as atomic leaf values rather than being traversed.
  */
-export const isObject = (value: unknown) =>
+export const isObject = (value: unknown): value is Record<string, any> =>
   typeof value === 'object' &&
   value !== null &&
   !Array.isArray(value) &&
   !(value instanceof Date) &&
-  !(value instanceof File) &&
+  !(typeof File !== 'undefined' && value instanceof File) &&
   !(value instanceof Map) &&
   !(value instanceof Set)
 

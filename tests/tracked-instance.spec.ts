@@ -9,49 +9,49 @@ describe('useTrackedInstance', async () => {
     })
     expect(instance.isDirty.value).eq(false)
     expect(instance.changedData.value).undefined
-    
+
     instance.data.value.name = 'test'
-    
+
     expect(instance.isDirty.value).eq(true)
     expect(instance.changedData.value).deep.eq({
       name: 'test',
     })
-    
+
     instance.data.value.name = 'John'
     expect(instance.isDirty.value).eq(false)
   })
-  
+
   it('should accept primitive value as root', async () => {
     const instance = useTrackedInstance('John')
     instance.data.value = 'Jane'
-    
+
     expect(instance.isDirty.value).eq(true)
-    
+
     instance.reset()
-    
+
     expect(instance.isDirty.value).eq(false)
     expect(instance.data.value).eq('John')
-    
+
     instance.data.value = 'Tom'
     instance.loadData('Jack')
-    
+
     expect(instance.isDirty.value).eq(false)
     expect(instance.data.value).eq('Jack')
   })
-  
+
   it('should change array of string', async () => {
     const instance = useTrackedInstance({
       name: 'John',
       hobbies: ['drift'],
     })
     instance.data.value.hobbies.push('films')
-    
+
     expect(instance.isDirty.value).eq(true)
     expect(instance.changedData.value).deep.eq({
       hobbies: [undefined, 'films'],
     })
   })
-  
+
   it('should change nested value in object', async () => {
     const instance = useTrackedInstance({
       name: 'John',
@@ -62,7 +62,7 @@ describe('useTrackedInstance', async () => {
         },
       },
     })
-    
+
     instance.data.value.info.contact.phone = 'none'
     expect(instance.changedData.value).deep.eq({
       info: {
@@ -72,7 +72,7 @@ describe('useTrackedInstance', async () => {
       },
     })
   })
-  
+
   it('should clean "changedData" after "loadData" ', async () => {
     const instance = useTrackedInstance({
       name: 'John',
@@ -84,7 +84,7 @@ describe('useTrackedInstance', async () => {
       name: 'Test',
       age: 100,
     })
-    
+
     expect(instance.data.value).deep.eq({
       name: 'Test',
       age: 100,
@@ -92,7 +92,7 @@ describe('useTrackedInstance', async () => {
     expect(instance.isDirty.value).eq(false)
     expect(instance.changedData.value).undefined
   })
-  
+
   it('should reset data after do some change', async () => {
     const instance = useTrackedInstance({
       name: 'John',
@@ -108,7 +108,7 @@ describe('useTrackedInstance', async () => {
     instance.data.value.info.contact.phone = 'none'
     instance.data.value.hobbies.splice(0, 1, 'test', 'test2')
     instance.reset()
-    
+
     expect(instance.data.value).deep.eq({
       name: 'John',
       info: {
@@ -122,7 +122,7 @@ describe('useTrackedInstance', async () => {
     expect(instance.isDirty.value).eq(false)
     expect(instance.changedData.value).undefined
   })
-  
+
   it('should display correct changedData after replace some value as object', async () => {
     const instance = useTrackedInstance<{
       contact: null | {
@@ -141,9 +141,9 @@ describe('useTrackedInstance', async () => {
       },
       user: null,
     })
-    
+
     instance.data.value.contact = null
-    
+
     instance.data.value.contact = {
       phone: '1',
       galaxy: 'Milky way',
@@ -154,14 +154,14 @@ describe('useTrackedInstance', async () => {
         address: undefined,
       },
     })
-    
+
     instance.data.value.contact = {
       phone: '123',
       galaxy: 'Milky way',
       address: 'Earth',
     }
     expect(instance.isDirty.value).eq(false)
-    
+
     instance.data.value.user = {
       name: 'Jack',
     }
@@ -172,7 +172,7 @@ describe('useTrackedInstance', async () => {
       },
     })
   })
-  
+
   it('should make whole object prop undefined', async () => {
     const instance = useTrackedInstance<{
       name?: string
@@ -186,13 +186,13 @@ describe('useTrackedInstance', async () => {
     })
     instance.data.value.name = undefined
     instance.data.value.info = undefined
-    
+
     expect(instance.changedData.value).deep.eq({
       name: undefined,
       info: undefined,
     })
   })
-  
+
   it('should replace primitive value as new object', async () => {
     const instance = useTrackedInstance<{
       user: string | { name: string }
@@ -200,26 +200,26 @@ describe('useTrackedInstance', async () => {
       user: 'John',
     })
     instance.data.value.user = 'Jack'
-    
+
     expect(instance.changedData.value).deep.eq({
       user: 'Jack',
     })
-    
+
     instance.data.value.user = {
       name: 'Peter',
     }
-    
+
     expect(instance.changedData.value).deep.eq({
       user: {name: 'Peter'},
     })
-    
+
     instance.reset()
     expect(instance.data.value).deep.eq({
       user: 'John',
     })
     expect(instance.isDirty.value).eq(false)
   })
-  
+
   it('should replace object value as new object', async () => {
     const instance = useTrackedInstance<{
       info: {
@@ -243,13 +243,13 @@ describe('useTrackedInstance', async () => {
       },
     })
     instance.data.value.info.address = 'Mars'
-    
+
     expect(instance.changedData.value).deep.eq({
       info: {
         address: 'Mars',
       },
     })
-    
+
     instance.data.value.info = {
       address: 'Earth',
       passport: {
@@ -258,7 +258,7 @@ describe('useTrackedInstance', async () => {
         owner: 'Jack',
       },
     }
-    
+
     instance.data.value.info = {
       address: 'Earth',
       passport: {
@@ -266,7 +266,7 @@ describe('useTrackedInstance', async () => {
         country: 'Ukraine',
       },
     }
-    
+
     expect(instance.changedData.value).deep.eq({
       info: {
         phone: undefined,
@@ -277,9 +277,9 @@ describe('useTrackedInstance', async () => {
         },
       },
     })
-    
+
     instance.reset()
-    
+
     expect(instance.changedData.value).undefined
     expect(instance.data.value).deep.eq({
       info: {
@@ -292,7 +292,7 @@ describe('useTrackedInstance', async () => {
       },
     })
   })
-  
+
   it('should display correct changedData when change nested value in array of objects', async () => {
     const instance = useTrackedInstance<{ id: number; name: string }[]>([
       {
@@ -304,13 +304,13 @@ describe('useTrackedInstance', async () => {
         name: 'Jack',
       },
     ])
-    
+
     instance.data.value[1].name = 'Joe'
     const expectedData = []
     expectedData[1] = {name: 'Joe'}
     expect(instance.changedData.value).deep.eq(expectedData)
   })
-  
+
   it('shouldn\'t change File or Date types', () => {
     const instance = useTrackedInstance<{ file?: File; date?: Date }>({})
     instance.data.value.file = new File(['content'], 'test.txt')
@@ -349,31 +349,31 @@ describe('useTrackedInstance', async () => {
     instance.data.value.set = source
     expect(instance.data.value.set).toBe(source)
   })
-  
+
   it('should copy input data to prevent external mutations', () => {
     const externalObject = {name: 'John'}
     const instance = useTrackedInstance()
     instance.data.value = externalObject
     externalObject.name = 'Jack'
-    
+
     expect(externalObject.name).eq('Jack')
     expect(instance.data.value.name).eq('John')
-    
+
     const externalArray = [1]
     instance.data.value = externalArray
     externalArray.pop()
-    
+
     expect(externalArray.length).eq(0)
     expect(instance.data.value.length).eq(1)
   })
-  
+
   it('should isDirty after remove array item', async () => {
     const instance = useTrackedInstance(['one', 'two'])
     instance.data.value.splice(1, 1)
-    
+
     expect(instance.isDirty.value).eq(true)
   })
-  
+
   it('should keep display "no changes" after remove added value in array', async () => {
     const instance = useTrackedInstance(['one'])
     instance.data.value.push('two')
@@ -479,5 +479,75 @@ describe('useTrackedInstance with equals option', () => {
     instance.reset()
     expect(instance.data.value.name).eq('John')
     expect(instance.isDirty.value).eq(false)
+  })
+})
+
+describe('proxy identity', () => {
+  it('returns the same proxy for repeated access of a nested object', () => {
+    const instance = useTrackedInstance({obj: {a: 1}, arr: [1, 2, 3]})
+    expect(instance.data.value.obj === instance.data.value.obj).eq(true)
+    expect(instance.data.value.arr === instance.data.value.arr).eq(true)
+  })
+
+  it('supports identity-based array operations on object elements', () => {
+    const instance = useTrackedInstance({list: [{id: 1}, {id: 2}]})
+    const first = instance.data.value.list[0]
+    expect(instance.data.value.list.includes(first)).eq(true)
+    expect(instance.data.value.list.indexOf(first)).eq(0)
+  })
+
+  it('records correct paths when elements move after splice', () => {
+    const instance = useTrackedInstance({list: [{n: 1}, {n: 2}]})
+    instance.data.value.list.splice(0, 1)
+    instance.data.value.list[0].n = 99
+
+    expect(instance.data.value.list).deep.eq([{n: 99}])
+
+    instance.reset()
+    expect(instance.isDirty.value).eq(false)
+    expect(instance.data.value.list).deep.eq([{n: 1}, {n: 2}])
+  })
+})
+
+describe('container kinds in changedData and reset', () => {
+  it('projects a numeric-string-keyed object as an object, not an array', () => {
+    const instance = useTrackedInstance({map: {0: 'a', 1: 'b'} as Record<string, string>})
+    instance.data.value.map[0] = 'X'
+
+    expect(Array.isArray(instance.changedData.value!.map)).eq(false)
+    expect(instance.changedData.value).deep.eq({map: {0: 'X'}})
+  })
+
+  it('restores a numeric-string-keyed object on reset after type change', () => {
+    const instance = useTrackedInstance<{ map: Record<string, string> | number }>({map: {0: 'a'}})
+    instance.data.value.map = 5
+
+    expect(instance.changedData.value).deep.eq({map: 5})
+
+    instance.reset()
+    expect(Array.isArray(instance.data.value.map)).eq(false)
+    expect(instance.data.value.map).deep.eq({0: 'a'})
+  })
+})
+
+describe('documented limitations', () => {
+  it('does not track delete of a key whose value is undefined', () => {
+    // Key presence with an undefined value is invisible to the Equals Predicate:
+    // old and new values are both undefined, so nothing is recorded and reset()
+    // does not restore the key. Pinned as a documented limitation.
+    const instance = useTrackedInstance<{ a?: string; b: number }>({a: undefined, b: 1})
+    delete instance.data.value.a
+
+    expect(instance.isDirty.value).eq(false)
+    expect('a' in instance.data.value).eq(false)
+  })
+
+  it('does not track symbol-keyed writes', () => {
+    const instance = useTrackedInstance({a: 1})
+    const sym = Symbol('s')
+    ;(instance.data.value as any)[sym] = 5
+
+    expect(instance.isDirty.value).eq(false)
+    expect((instance.data.value as any)[sym]).eq(5)
   })
 })

@@ -107,6 +107,34 @@ describe('Collection', () => {
     })
   })
 
+  describe('remove safety', () => {
+    it('is a no-op for an out-of-range index', () => {
+      const collection = useCollection<Person>()
+      collection.loadData([{name: 'admin'}])
+      expect(() => collection.remove(99)).not.toThrow()
+      expect(collection.items.value.length).equal(1)
+    })
+
+    it('is a no-op when item.remove() is called twice on a new item', () => {
+      const collection = useCollection<Person>()
+      collection.loadData([{name: 'admin'}])
+      const item = collection.add({name: 'new user'})
+      item.remove()
+      expect(() => item.remove()).not.toThrow()
+      expect(collection.items.value.length).equal(1)
+    })
+
+    it('is a no-op for stale item references after loadData', () => {
+      const collection = useCollection<Person>()
+      collection.loadData([{name: 'admin'}])
+      const stale = collection.items.value[0]
+      collection.loadData([{name: 'user'}])
+      expect(() => stale.remove(true)).not.toThrow()
+      expect(collection.items.value.length).equal(1)
+      expect(collection.items.value[0].instance.data.value.name).equal('user')
+    })
+  })
+
   describe('loadData', () => {
     let collection: ReturnType<typeof useCollection<Person>>
 

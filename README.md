@@ -179,22 +179,22 @@ TrackedInstance<Data>
 
 | Return              | Type                     | Description                                                 |
 |---------------------|--------------------------|-------------------------------------------------------------|
-| `data`              | `Ref<Data>`              | Reactive reference to current data. Mutate directly.        |
-| `changedData`       | `Ref<DeepPartial<Data>>` | Only modified fields. `undefined` when nothing has changed. |
-| `isDirty`           | `Ref<boolean>`           | `true` when any field differs from the original.            |
+| `data`              | `Ref<Data>`                      | Reactive reference to current data. Mutate directly.        |
+| `changedData`       | `ComputedRef<DeepPartial<Data>>` | Only modified fields. `undefined` when nothing has changed. |
+| `isDirty`           | `ComputedRef<boolean>`           | `true` when any field differs from the original.            |
 | `loadData(newData)` | `void`                   | Replace data and clear dirty state (new baseline).          |
 | `reset()`           | `void`                   | Revert all changes back to the last `loadData()` baseline.  |
 
-### useCollection(createItemMeta?, options?)
+### useCollection(options?)
 
 ```typescript
-useCollection<Item, Meta>(
-  createItemMeta ? : (instance: TrackedInstance<Item>) => Meta,
-  options ? : TrackedInstanceOptions,
-)
-:
-Collection<Item, Meta>
+useCollection<Item, Meta>(options?: CollectionOptions<Item, Meta>): Collection<Item, Meta>
 ```
+
+| Option           | Type                                       | Description                                                |
+|------------------|--------------------------------------------|------------------------------------------------------------|
+| `equals`         | `(a: unknown, b: unknown) => boolean`      | Custom equality for primitive leaf values. Replaces `===`. |
+| `createItemMeta` | `(instance: TrackedInstance<Item>) => Meta` | Factory for per-item metadata, called on loadData/add.     |
 
 | Return                         | Type                    | Description                                                      |
 |--------------------------------|-------------------------|------------------------------------------------------------------|

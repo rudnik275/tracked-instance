@@ -1,4 +1,4 @@
-import {computed, Ref} from 'vue'
+import {computed, ComputedRef, Ref} from 'vue'
 import {createTrackedData} from './tracked-data'
 import {DeepPartial} from './utils'
 
@@ -6,9 +6,9 @@ export interface TrackedInstance<Data> {
   /** Reactive reference to the current (possibly modified) data. */
   data: Ref<Data>
   /** True when at least one field differs from the value at the last loadData() call. */
-  isDirty: Ref<boolean>
+  isDirty: ComputedRef<boolean>
   /** Partial object containing only the fields that have changed since the last loadData(). */
-  changedData: Ref<DeepPartial<Data>>
+  changedData: ComputedRef<DeepPartial<Data>>
   /** Replaces the current data and clears the dirty state. The new value becomes the new baseline. */
   loadData: (newData: Data) => void
   /** Reverts all changes, restoring data to the state at the last loadData() call. */

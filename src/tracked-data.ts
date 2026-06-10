@@ -15,14 +15,28 @@ function getAtPath(obj: any, path: string[]): unknown {
   return cur
 }
 
-function setAtPath(obj: Record<string, any>, path: string[], value: unknown): void {
+/**
+ * Writes `value` at `path`, creating missing intermediate containers. When the
+ * Ledger-aware `makeContainer` factory is provided it decides object-vs-array by
+ * the recorded LedgerNode kind; the integer-key heuristic is only the fallback,
+ * because a plain object keyed by numeric strings ({0: 'a'}) must not be
+ * projected as an array.
+ */
+function setAtPath(
+  obj: Record<string, any>,
+  path: string[],
+  value: unknown,
+  makeContainer?: (prefix: string[]) => Record<string, any> | unknown[],
+): void {
   if (path.length === 0) return
   let target: any = obj
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i]
     const existing = target[key]
     if (existing == null || typeof existing !== 'object') {
-      target[key] = isIntegerKey(path[i + 1]!) ? [] : {}
+      target[key] = makeContainer
+        ? makeContainer(path.slice(0, i + 1))
+        : isIntegerKey(path[i + 1]!) ? [] : {}
     }
     target = target[key]
   }
@@ -75,8 +89,8 @@ class LedgerNode {
     delete this._entries[key]
   }
 
-  entries(): IterableIterator<[string, LedgerNode | unknown]> {
-    return Object.entries(this._entries)[Symbol.iterator]()
+  entries(): [string, LedgerNode | unknown][] {
+    return Object.entries(this._entries)
   }
 
   isEmpty(): boolean {
@@ -105,7 +119,7 @@ function captureAsLedgerNode(value: unknown): LedgerNode | unknown {
   }
   if (isObject(value)) {
     const node = new LedgerNode('object')
-    for (const [key, child] of Object.entries(value as Record<string, any>)) {
+    for (const [key, child] of Object.entries(value)) {
       node.set(key, captureAsLedgerNode(child))
     }
     return node
@@ -153,8 +167,7 @@ function lookupInLedger(root: LedgerNode, path: string[]): LedgerLookup {
  * Removes the leaf at `path` and prunes any ancestor LedgerNode that becomes
  * empty as a result. Empty-container detection goes through node.isEmpty(),
  * which counts only recorded entries — never the array `length` field — so
- * an array LedgerNode with no surviving indices is treated as empty just like
- * the previous Object.keys-on-AID trick.
+ * an array LedgerNode with no surviving indices is treated as empty.
  */
 function unsetInLedger(root: LedgerNode, path: string[]): void {
   if (path.length === 0) return
@@ -366,9 +379,9 @@ class OriginalDataLedger {
     const oldValue = lastPathItem.target[lastPathItem.property]
     const storeNode = isLedgerNode(valueInStore) ? valueInStore : undefined
     if (isObject(value) && (storeNode?.kind === 'object' || isObject(oldValue))) {
-      this._recordContainerMutation(path, value as Record<string, any>, oldValue, storeNode)
+      this._recordContainerMutation(path, value, oldValue, storeNode)
     } else if (Array.isArray(value) && (storeNode?.kind === 'array' || Array.isArray(oldValue))) {
-      this._recordContainerMutation(path, value as any[], oldValue, storeNode)
+      this._recordContainerMutation(path, value, oldValue, storeNode)
     } else {
       this._recordLeaf(path, value)
     }
@@ -378,8 +391,20 @@ class OriginalDataLedger {
     return this._store.isEmpty()
   }
 
+  /**
+   * Ledger-aware container factory for setAtPath: a missing intermediate
+   * container is an array exactly when the recorded LedgerNode at that prefix
+   * is an array node. Every intermediate prefix on a leaf's Path corresponds to
+   * a container node in the store, so the lookup always resolves.
+   */
+  private _containerForPrefix = (prefix: string[]): Record<string, any> | unknown[] => {
+    const {value} = lookupInLedger(this._store, prefix)
+    return isLedgerNode(value) && value.kind === 'array' ? [] : {}
+  }
+
   projectDiff<Data extends Record<string, any>>(liveData: Data): DeepPartial<Data> {
     const result = {} as DeepPartial<Data>
+    const containerFor = this._containerForPrefix
     walkLedger(this._store, {
       visitContainer(path, node): boolean {
         // Stop descent when the live data at this path has a different shape from
@@ -389,11 +414,11 @@ class OriginalDataLedger {
         const isBothObject = node.kind === 'object' && isObject(liveValue)
         const isBothArray = node.kind === 'array' && Array.isArray(liveValue)
         if (isBothObject || isBothArray) return true
-        setAtPath(result as Record<string, any>, path, liveValue)
+        setAtPath(result as Record<string, any>, path, liveValue, containerFor)
         return false
       },
       visitLeaf(path, _value): void {
-        setAtPath(result as Record<string, any>, path, getAtPath(liveData, path))
+        setAtPath(result as Record<string, any>, path, getAtPath(liveData, path), containerFor)
       },
     })
     return result
@@ -401,21 +426,26 @@ class OriginalDataLedger {
 
   applyReverse<Data>(liveData: Data): Data {
     const updatedData = cloneDeep(liveData)
+    const containerFor = this._containerForPrefix
     walkLedger(this._store, {
       visitContainer(path, node): boolean {
-        // Restore array length before children are written (parent-before-children
-        // ordering). If the field was type-changed to a non-array (e.g. hobbies went
-        // from string[] to string), create a fresh array so child visits populate it
-        // correctly instead of building a plain object with numeric string keys.
+        // Restore the container shape before children are written (parent-before-
+        // children ordering). For arrays also restore the Baseline length. If the
+        // field was type-changed to a different shape (e.g. hobbies went from
+        // string[] to string, or a numeric-keyed object became a scalar), create a
+        // fresh container of the recorded kind so child visits populate it
+        // correctly instead of relying on key-shape guessing.
+        const cur = getAtPath(updatedData as any, path)
         if (node.kind === 'array') {
-          const cur = getAtPath(updatedData as any, path)
           if (Array.isArray(cur)) {
             cur.length = node.length
           } else {
             const restored: unknown[] = []
             restored.length = node.length
-            setAtPath(updatedData as Record<string, any>, path, restored)
+            setAtPath(updatedData as Record<string, any>, path, restored, containerFor)
           }
+        } else if (!isObject(cur)) {
+          setAtPath(updatedData as Record<string, any>, path, {}, containerFor)
         }
         return true
       },
@@ -423,7 +453,7 @@ class OriginalDataLedger {
         if (value === undefined) {
           unsetAtPath(updatedData as object, path)
         } else {
-          setAtPath(updatedData as Record<string, any>, path, value)
+          setAtPath(updatedData as Record<string, any>, path, value, containerFor)
         }
       },
     })
@@ -437,37 +467,72 @@ class OriginalDataLedger {
 
 // ---------- tracked proxy ----------
 
+interface TrackedProxyHandle<Data> {
+  dataRef: Ref<Data>
+  /**
+   * The raw (un-proxied) live data. Internal walkers (projectDiff, applyReverse)
+   * read through this instead of dataRef so they don't pay Proxy-trap cost and
+   * don't allocate throwaway nested proxies; reactivity is unaffected because
+   * every mutation already bumps the ledger ref.
+   */
+  getRaw: () => Data
+}
+
 /**
  * Wraps `initialData` in a deeply-Proxy'd Vue ref. Every mutation at any depth calls
  * `onMutation(path, value)` exactly once so the owner can record the change and drive
  * Vue reactivity in a single step.
  *
- * Handles three responsibilities the public composable shouldn't care about:
+ * Handles four responsibilities the public composable shouldn't care about:
  *   - nested Proxy creation + path bookkeeping
+ *   - stable proxy identity: nested proxies are cached per raw object (keyed by the
+ *     access path), so `data.value.obj === data.value.obj` holds and identity-based
+ *     consumers (includes/indexOf, Map/Set keys, memoization) work. The cache stays
+ *     correct because every write stores a fresh clone — a raw object can never
+ *     silently move to another Path while keeping its cached proxy.
  *   - Array.length synthesis: writes to an array's `length` don't fire individual
  *     index events through Proxy traps, so synthetic per-index `delete`/`set` events
  *     are emitted on the live receiver to keep ledger index entries consistent
  *   - cloneDeep on every write so stored values are detached from caller refs
+ *
+ * Symbol-keyed properties are exempt from tracking: a symbol cannot be represented
+ * in a string-keyed Path, so symbol reads return the raw value and symbol writes
+ * mutate the data without touching the Ledger.
  */
 const createTrackedProxy = <Data extends Record<string, any>>(
   initialData: Data,
   onMutation: (path: LedgerPath, value: unknown) => void,
-): Ref<Data> =>
-  customRef<Data>((track, trigger) => {
+): TrackedProxyHandle<Data> => {
+  let rawValue = initialData
+  const dataRef = customRef<Data>((track, trigger) => {
+    const proxyCache = new WeakMap<object, {proxy: any; pathKey: string}>()
+
     const createProxy = <Inner extends Record<string, any>>(
       source: Inner,
       parentTree: LedgerPath = [],
+      parentKey = '',
     ): Inner =>
       new Proxy(source, {
-        get(target, property: string, receiver) {
+        get(target, property, receiver) {
           track()
           const result = Reflect.get(target, property, receiver)
+          if (typeof property === 'symbol') return result
           if (isObject(result) || Array.isArray(result)) {
-            return createProxy(result, parentTree.concat({target, property}))
+            const pathKey = parentKey + ' ' + property
+            const cached = proxyCache.get(result)
+            if (cached && cached.pathKey === pathKey) return cached.proxy
+            const proxy = createProxy(result, parentTree.concat({target, property}), pathKey)
+            proxyCache.set(result, {proxy, pathKey})
+            return proxy
           }
           return result
         },
-        set(target, property: string, value, receiver) {
+        set(target, property, value, receiver) {
+          if (typeof property === 'symbol') {
+            const result = Reflect.set(target, property, value, receiver)
+            trigger()
+            return result
+          }
           const path = parentTree.concat({target, property})
           const oldValue = target[property as keyof typeof target]
 
@@ -491,7 +556,12 @@ const createTrackedProxy = <Data extends Record<string, any>>(
           trigger()
           return result
         },
-        deleteProperty(target, property: string) {
+        deleteProperty(target, property) {
+          if (typeof property === 'symbol') {
+            const result = Reflect.deleteProperty(target, property)
+            trigger()
+            return result
+          }
           const path = parentTree.concat({target, property})
           onMutation(path, undefined)
           const result = Reflect.deleteProperty(target, property)
@@ -508,11 +578,14 @@ const createTrackedProxy = <Data extends Record<string, any>>(
         return value
       },
       set(newValue: Data) {
+        rawValue = newValue
         value = createProxy(newValue)
         trigger()
       },
     }
   })
+  return {dataRef, getRaw: () => rawValue}
+}
 
 // ---------- public factory ----------
 
@@ -548,15 +621,18 @@ export const createTrackedData = <Data extends Record<string, any>>(
   const ledgerRef = shallowRef(ledger)
   const bumpLedger = () => triggerRef(ledgerRef)
 
-  const dataRef = createTrackedProxy<Data>(cloneDeep(initialValue), (path, value) => {
+  const {dataRef, getRaw} = createTrackedProxy<Data>(cloneDeep(initialValue), (path, value) => {
     ledger.record(path, value)
     bumpLedger()
   })
 
   const isDirty = computed<boolean>(() => !ledgerRef.value.isEmpty())
 
+  // Projections read the raw data, not the proxy: every mutation bumps ledgerRef
+  // unconditionally, so the ledger dependency alone fully covers invalidation and
+  // the Proxy-trap overhead of walking live data is skipped.
   const changedData = computed<DeepPartial<Data>>(() =>
-    ledgerRef.value.projectDiff(dataRef.value),
+    ledgerRef.value.projectDiff(getRaw()),
   )
 
   const loadData = (newValue: Data) => {
@@ -566,7 +642,7 @@ export const createTrackedData = <Data extends Record<string, any>>(
   }
 
   const reset = () => {
-    dataRef.value = ledger.applyReverse(dataRef.value)
+    dataRef.value = ledger.applyReverse(getRaw())
     ledger.clear()
     bumpLedger()
   }
